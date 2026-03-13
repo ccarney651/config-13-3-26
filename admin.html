@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pricing Admin — Garden Room Configurator</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css">
+  <style>
+    .admin-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+    .admin-search { flex:1; min-width:200px; padding:8px 14px; border:1.5px solid #e2ddd6; border-radius:8px; font-size:14px; font-family:inherit; outline:none; }
+    .admin-search:focus { border-color:#3a6647; }
+    .admin-stats { font-size:12px; color:#888; padding:4px 10px; background:#f8f6f2; border-radius:6px; white-space:nowrap; }
+
+    /* Top-level sections */
+    .admin-section { background:#fff; border-radius:12px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); overflow:hidden; }
+    .section-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; cursor:pointer; user-select:none; border-bottom:1px solid transparent; transition:background 0.1s; }
+    .section-head:hover { background:#fafaf8; }
+    .admin-section.expanded .section-head { border-bottom-color:#e8e4dd; }
+    .section-head h2 { font-size:15px; font-weight:700; color:#274833; margin:0; display:flex; align-items:center; gap:8px; }
+    .section-chevron { transition:transform 0.2s; font-size:11px; color:#999; }
+    .admin-section.expanded .section-chevron { transform:rotate(90deg); }
+    .section-meta { display:flex; align-items:center; gap:8px; }
+    .section-count { font-size:11px; color:#999; background:#f0ede8; border-radius:10px; padding:2px 8px; }
+    .section-actions { display:flex; gap:4px; }
+    .section-actions button { font-size:11px; border:none; background:none; cursor:pointer; font-family:inherit; font-weight:600; padding:3px 6px; border-radius:4px; }
+    .section-actions .act-enable { color:#5a9e72; }
+    .section-actions .act-enable:hover { background:#e8f5ed; }
+    .section-actions .act-disable { color:#c0392b; }
+    .section-actions .act-disable:hover { background:#fde8e8; }
+
+    .section-body { display:none; padding:0; }
+    .admin-section.expanded .section-body { display:block; }
+
+    /* Sub-groups within a section */
+    .sub-group { border-top:1px solid #f0ede8; }
+    .sub-group:first-child { border-top:none; }
+    .sub-head { padding:8px 20px 8px 32px; font-size:12px; font-weight:700; color:#666; text-transform:uppercase; letter-spacing:0.5px; background:#fafaf8; display:flex; align-items:center; justify-content:space-between; }
+    .sub-count { font-size:10px; font-weight:400; color:#aaa; }
+
+    /* Item rows */
+    .item-row { display:flex; align-items:center; gap:8px; padding:6px 20px 6px 32px; border-bottom:1px solid #f5f3ef; transition:background 0.1s; }
+    .item-row:last-child { border-bottom:none; }
+    .item-row:hover { background:#fafaf8; }
+    .item-row.disabled { opacity:0.4; }
+
+    .item-toggle { width:34px; height:18px; border-radius:9px; border:none; background:#ccc; cursor:pointer; position:relative; flex-shrink:0; transition:background 0.2s; padding:0; }
+    .item-toggle::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; transition:transform 0.2s; box-shadow:0 1px 2px rgba(0,0,0,0.2); }
+    .item-toggle.on { background:#5a9e72; }
+    .item-toggle.on::after { transform:translateX(16px); }
+
+    .item-label { flex:1; font-size:13px; color:#333; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .item-unit { font-size:11px; color:#888; width:60px; text-align:center; flex-shrink:0; }
+    .item-rate { width:85px; flex-shrink:0; }
+    .item-rate input { width:100%; border:1.5px solid #e2ddd6; border-radius:6px; padding:4px 8px; font-size:13px; font-family:inherit; outline:none; text-align:right; }
+    .item-rate input:focus { border-color:#3a6647; }
+    .item-rate input.changed { border-color:#e6a817; background:#fffbe6; }
+
+    .btn-add { margin:6px 20px 10px 32px; padding:5px 12px; border:1.5px dashed #ccc; border-radius:6px; background:transparent; font-size:11px; font-family:inherit; cursor:pointer; color:#888; }
+    .btn-add:hover { border-color:#5a9e72; color:#5a9e72; }
+
+    .btn-export { background:#3a6647; color:#fff; border:none; padding:8px 16px; border-radius:7px; font-size:13px; font-family:inherit; font-weight:600; cursor:pointer; }
+    .btn-export:hover { background:#2d5038; }
+  </style>
+</head>
+<body>
+
+<div id="adminGate" style="
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  background:#f5f0eb; z-index:9999; font-family:inherit;
+">
+  <div style="background:#fff; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.12);
+              padding:40px 48px; max-width:360px; width:90%; text-align:center;">
+    <h2 style="margin:0 0 6px; font-size:20px; color:#1a1a1a;">Admin Panel</h2>
+    <p style="margin:0 0 24px; color:#666; font-size:14px;">Enter the admin password to continue.</p>
+    <input id="gateInput" type="password" placeholder="Password"
+      style="width:100%; box-sizing:border-box; padding:10px 14px; border:1.5px solid #ddd;
+             border-radius:8px; font-size:15px; font-family:inherit; outline:none; margin-bottom:12px;"
+      onkeydown="if(event.key==='Enter') checkPassword()">
+    <div id="gateError" style="display:none; color:#c0392b; font-size:13px; margin-bottom:10px;">
+      Incorrect password.
+    </div>
+    <button onclick="checkPassword()"
+      style="width:100%; background:#3a6647; color:#fff; border:none; border-radius:8px;
+             padding:11px; font-size:15px; font-family:inherit; font-weight:600; cursor:pointer;">
+      Enter
+    </button>
+  </div>
+</div>
+
+<div id="adminPanel" style="display:none;">
+  <div class="admin-header">
+    <h1>Pricing Admin Panel</h1>
+    <div class="admin-header-actions">
+      <button class="btn-save" onclick="savePricing()">Save Changes</button>
+      <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+      <button class="btn-reset" onclick="resetPricing()">Reset All</button>
+      <a class="btn-back" href="index.html">← Configurator</a>
+    </div>
+  </div>
+  <div class="admin-body">
+    <div class="admin-intro">
+      All prices in <strong>GBP (£)</strong>. Toggle items on/off to control what appears in the configurator.
+      Disabled items are hidden from customers but kept in the system.
+    </div>
+    <div class="admin-toolbar">
+      <input class="admin-search" type="text" id="adminSearch" placeholder="Search 505 items..." oninput="filterItems(this.value)">
+      <span class="admin-stats" id="adminStats"></span>
+    </div>
+    <div id="adminForm"></div>
+  </div>
+</div>
+
+<div id="saveMsg">Saved successfully.</div>
+
+<script src="js/state.js"></script>
+<script src="js/pricing.js"></script>
+<script>
+const ADMIN_PASSWORD = 'gardenroom2024';
+
+// ─── Unit display mapping ───────────────────────────────────────────────────
+// What makes business sense for each unit type
+const UNIT_DISPLAY = {
+  'M2': '£/m²',
+  'Roof Area': '£/m²',
+  'Each': '£ each',
+  'Quantity': '£/m²',          // flooring priced per m²
+  'Width x Depth': '£/m²',    // decking/veranda priced per m²
+  'Length Metres': '£/lin. m', // guttering, underfloor heating
+};
+
+function unitLabel(rawUnit) { return UNIT_DISPLAY[rawUnit] || rawUnit; }
+
+// ─── Admin structure: top-level sections with nested sub-groups ─────────────
+const SECTIONS = [
+  { key:'cladding', label:'Cladding', subs:[
+    ['cladding','classic','Classic'], ['cladding','fc_plank','Fibre Cement Plank'],
+    ['cladding','fc_plank_smooth','FC Plank Smooth'], ['cladding','fc_vl_horiz','FC VL Horizontal'],
+    ['cladding','fc_vl_vert','FC VL Vertical'], ['cladding','fc_hit_miss','Hit & Miss'],
+    ['cladding','composite','Composite'], ['cladding','shadow_line','Shadow Line'],
+    ['cladding','board_batten','Board & Batten'], ['cladding','renders','Renders'],
+    ['cladding','metal','Metal'], ['cladding','neo_deluxe','NeoTimber Deluxe'],
+    ['cladding','neo_classic','NeoTimber Classic'],
+  ]},
+  { key:'roofing', label:'Roofing', subs:[['roofing','materials','Materials']] },
+  { key:'doors', label:'Doors', subs:[
+    ['doors','standard','Standard'], ['doors','sliding','Sliding'],
+    ['doors','folding','Folding'], ['doors','interior','Interior'],
+  ]},
+  { key:'windows', label:'Windows', subs:[
+    ['windows','fixed','Fixed'], ['windows','tilt_turn','Tilt & Turn'],
+    ['windows','awning','Awning'], ['windows','hung','Hung'],
+    ['windows','gable','Gable'], ['windows','sliding','Sliding'],
+    ['windows','split','Split'], ['windows','bathroom','Bathroom'],
+    ['windows','georgian','Georgian'], ['windows','other','Other'],
+    ['windows','glazing_units','Glazing Units'],
+  ]},
+  { key:'flooring', label:'Flooring', subs:[
+    ['flooring','wood','Wood'], ['flooring','rubber','Rubber'],
+    ['flooring','stone_tile','Stone & Tile'], ['flooring','gym','Gym'],
+    ['flooring','structural','Structural'],
+  ]},
+  { key:'interior', label:'Interior Finishes', subs:[['interior','walls','Wall Finishes']] },
+  { key:'exterior', label:'Exterior Finish', subs:[['exterior_finish','guttering','Guttering']] },
+  { key:'decking', label:'Decking', subs:[
+    ['decking','standalone','Standalone'], ['decking','inbuilt','Inbuilt'],
+  ]},
+  { key:'electrical', label:'Lighting & Electrics', subs:[
+    ['electrical','sockets','Sockets'], ['electrical','switches','Switches'],
+    ['electrical','lights','Lights'], ['electrical','other','Other'],
+  ]},
+  { key:'bathroom', label:'Bathroom & Fixtures', subs:[['bathroom','fixtures','Fixtures']] },
+  { key:'heating', label:'Heating & Climate', subs:[['heating','units','Units']] },
+  { key:'structural', label:'Structural', subs:[['structural','elements','Elements']] },
+  { key:'roof_porch', label:'Roof & Porch', subs:[
+    ['roof_porch','rooflights','Rooflights'], ['roof_porch','structures','Structures'],
+  ]},
+  { key:'site', label:'Groundworks & Utility', subs:[['site','services','Services']] },
+  { key:'misc', label:'Accessories', subs:[['misc','other','Other']] },
+];
+
+let disabledItems = JSON.parse(localStorage.getItem('gardenroom_disabled') || '{}');
+let rateOverrides = JSON.parse(localStorage.getItem('gardenroom_pricing') || '{}');
+
+// ─── Auth ───────────────────────────────────────────────────────────────────
+function checkPassword() {
+  const input = document.getElementById('gateInput');
+  if (input.value === ADMIN_PASSWORD) {
+    sessionStorage.setItem('pricing_admin_auth', '1');
+    showPanel();
+  } else {
+    const err = document.getElementById('gateError');
+    err.style.display = 'block';
+    input.value = '';
+    input.focus();
+    setTimeout(() => err.style.display = 'none', 3000);
+  }
+}
+function showPanel() {
+  document.getElementById('adminGate').style.display = 'none';
+  document.getElementById('adminPanel').style.display = '';
+  buildForm();
+}
+// Auto-unlock if already authenticated in this browser session
+if (sessionStorage.getItem('pricing_admin_auth') === '1') {
+  showPanel();
+}
+
+// ─── Build form ─────────────────────────────────────────────────────────────
+function buildForm() {
+  const container = document.getElementById('adminForm');
+  let html = '';
+  let totalItems = 0, totalEnabled = 0;
+
+  SECTIONS.forEach(sec => {
+    // Count totals for this top-level section
+    let secTotal = 0, secEnabled = 0;
+    sec.subs.forEach(([cat, sub]) => {
+      const items = (CATALOGUE[cat] && CATALOGUE[cat][sub]) || [];
+      secTotal += items.length;
+      secEnabled += items.filter(it => !disabledItems[it.key]).length;
+    });
+    totalItems += secTotal;
+    totalEnabled += secEnabled;
+
+    html += `<div class="admin-section" id="sec-${sec.key}">`;
+
+    // Section header
+    html += `<div class="section-head" onclick="toggleSec('${sec.key}')">`;
+    html += `<h2><span class="section-chevron">▶</span> ${sec.label}</h2>`;
+    html += `<div class="section-meta">`;
+    html += `<span class="section-count" id="count-${sec.key}">${secEnabled}/${secTotal}</span>`;
+    html += `<div class="section-actions">`;
+    html += `<button class="act-enable" onclick="event.stopPropagation();toggleAllSec('${sec.key}',true)">Enable All</button>`;
+    html += `<button class="act-disable" onclick="event.stopPropagation();toggleAllSec('${sec.key}',false)">Disable All</button>`;
+    html += `</div></div></div>`;
+
+    // Section body with sub-groups
+    html += `<div class="section-body">`;
+    sec.subs.forEach(([cat, sub, subLabel]) => {
+      const items = (CATALOGUE[cat] && CATALOGUE[cat][sub]) || [];
+      if (!items.length) return;
+
+      html += `<div class="sub-group" data-sec="${sec.key}">`;
+      html += `<div class="sub-head"><span>${subLabel}</span><span class="sub-count">${items.length} items</span></div>`;
+
+      items.sort((a, b) => a.label.localeCompare(b.label)).forEach(it => {
+        const isOn = !disabledItems[it.key];
+        const rate = rateOverrides[it.key] ?? it.rate;
+        const unit = unitLabel(it.unit);
+        html += `<div class="item-row${isOn ? '' : ' disabled'}" data-key="${it.key}" data-sec="${sec.key}">`;
+        html += `<button class="item-toggle${isOn ? ' on' : ''}" onclick="toggleItem('${it.key}',this)"></button>`;
+        html += `<span class="item-thumb-wrap"><img class="item-thumb" src="assets/${it.key}.jpg" loading="lazy" onerror="this.classList.add('no-img')" title="assets/${it.key}.jpg"></span>`;
+        html += `<span class="item-label" title="${it.key}">${it.label}</span>`;
+        html += `<span class="item-unit">${unit}</span>`;
+        html += `<span class="item-rate"><input type="number" step="any" min="0" value="${rate}" data-key="${it.key}" onchange="this.classList.add('changed')"></span>`;
+        html += `</div>`;
+      });
+
+      html += `<button class="btn-add" onclick="addItem('${cat}','${sub}','${sec.key}')">+ Add custom item</button>`;
+      html += `</div>`;
+    });
+    html += `</div></div>`;
+  });
+
+  container.innerHTML = html;
+  updateStats(totalEnabled, totalItems);
+}
+
+// ─── Interactions ───────────────────────────────────────────────────────────
+function toggleSec(key) {
+  document.getElementById('sec-' + key).classList.toggle('expanded');
+}
+
+function toggleItem(key, btn) {
+  const row = btn.closest('.item-row');
+  if (disabledItems[key]) {
+    delete disabledItems[key];
+    btn.classList.add('on');
+    row.classList.remove('disabled');
+  } else {
+    disabledItems[key] = true;
+    btn.classList.remove('on');
+    row.classList.add('disabled');
+  }
+  updateSecCount(row.dataset.sec);
+}
+
+function toggleAllSec(secKey, enable) {
+  document.querySelectorAll(`.item-row[data-sec="${secKey}"]`).forEach(row => {
+    const key = row.dataset.key;
+    const btn = row.querySelector('.item-toggle');
+    if (enable) { delete disabledItems[key]; btn.classList.add('on'); row.classList.remove('disabled'); }
+    else { disabledItems[key] = true; btn.classList.remove('on'); row.classList.add('disabled'); }
+  });
+  updateSecCount(secKey);
+}
+
+function updateSecCount(secKey) {
+  const rows = document.querySelectorAll(`.item-row[data-sec="${secKey}"]`);
+  const enabled = document.querySelectorAll(`.item-row[data-sec="${secKey}"]:not(.disabled)`).length;
+  const el = document.getElementById('count-' + secKey);
+  if (el) el.textContent = `${enabled}/${rows.length}`;
+  // Global stats
+  const allRows = document.querySelectorAll('.item-row');
+  const allEnabled = document.querySelectorAll('.item-row:not(.disabled)').length;
+  updateStats(allEnabled, allRows.length);
+}
+
+function updateStats(enabled, total) {
+  document.getElementById('adminStats').textContent = `${enabled} of ${total} items enabled`;
+}
+
+function filterItems(query) {
+  const q = query.toLowerCase().trim();
+  document.querySelectorAll('.admin-section').forEach(sec => {
+    let anyVisible = false;
+    sec.querySelectorAll('.item-row').forEach(row => {
+      const match = !q || row.querySelector('.item-label').textContent.toLowerCase().includes(q);
+      row.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+    sec.style.display = anyVisible ? '' : 'none';
+    if (q && anyVisible) sec.classList.add('expanded');
+  });
+}
+
+function addItem(cat, sub, secKey) {
+  const label = prompt('Item name:');
+  if (!label) return;
+  const rate = parseFloat(prompt('Rate (£):', '0')) || 0;
+  const unit = prompt('Unit — type one of: Each, M2, Length Metres', 'Each') || 'Each';
+  const key = 'custom_' + label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+  if (!CATALOGUE[cat]) CATALOGUE[cat] = {};
+  if (!CATALOGUE[cat][sub]) CATALOGUE[cat][sub] = [];
+  CATALOGUE[cat][sub].push({ key, label, rate, unit });
+
+  const customs = JSON.parse(localStorage.getItem('gardenroom_custom_items') || '[]');
+  customs.push({ catKey: cat, subKey: sub, key, label, rate, unit });
+  localStorage.setItem('gardenroom_custom_items', JSON.stringify(customs));
+
+  buildForm();
+  document.getElementById('sec-' + secKey)?.classList.add('expanded');
+  showSaveMsg(`Added "${label}"`);
+}
+
+// ─── Save / Reset / Export ──────────────────────────────────────────────────
+function savePricing() {
+  const newOverrides = {};
+  document.querySelectorAll('.item-rate input').forEach(inp => {
+    const key = inp.dataset.key;
+    const val = parseFloat(inp.value) || 0;
+    const item = getItem(key);
+    if (item && val !== item.rate) newOverrides[key] = val;
+    inp.classList.remove('changed');
+  });
+  localStorage.setItem('gardenroom_pricing', JSON.stringify(newOverrides));
+  localStorage.setItem('gardenroom_disabled', JSON.stringify(disabledItems));
+  rateOverrides = newOverrides;
+  showSaveMsg('Saved — prices update on the next customer interaction.');
+}
+
+function resetPricing() {
+  if (!confirm('Reset ALL prices and re-enable ALL items?')) return;
+  localStorage.removeItem('gardenroom_pricing');
+  localStorage.removeItem('gardenroom_disabled');
+  localStorage.removeItem('gardenroom_custom_items');
+  rateOverrides = {};
+  disabledItems = {};
+  buildForm();
+  showSaveMsg('Reset to defaults.');
+}
+
+function exportCSV() {
+  let csv = 'Category,Sub-group,Item,Key,Rate (GBP),Unit,Enabled\n';
+  SECTIONS.forEach(sec => {
+    sec.subs.forEach(([cat, sub, subLabel]) => {
+      ((CATALOGUE[cat] && CATALOGUE[cat][sub]) || []).forEach(it => {
+        const rate = rateOverrides[it.key] ?? it.rate;
+        const enabled = !disabledItems[it.key];
+        csv += `"${sec.label}","${subLabel}","${it.label}","${it.key}",${rate},"${unitLabel(it.unit)}",${enabled}\n`;
+      });
+    });
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'pricing_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+// ─── Custom items loader ────────────────────────────────────────────────────
+(function() {
+  const customs = JSON.parse(localStorage.getItem('gardenroom_custom_items') || '[]');
+  customs.forEach(c => {
+    if (!CATALOGUE[c.catKey]) CATALOGUE[c.catKey] = {};
+    if (!CATALOGUE[c.catKey][c.subKey]) CATALOGUE[c.catKey][c.subKey] = [];
+    if (!CATALOGUE[c.catKey][c.subKey].find(it => it.key === c.key)) {
+      CATALOGUE[c.catKey][c.subKey].push({ key: c.key, label: c.label, rate: c.rate, unit: c.unit });
+    }
+  });
+})();
+
+function showSaveMsg(text) {
+  const msg = document.getElementById('saveMsg');
+  msg.textContent = text;
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display = 'none', 3000);
+}
+</script>
+</body>
+</html>

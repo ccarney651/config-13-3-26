@@ -1,0 +1,10 @@
+{
+  "name": "gardenroom-configurator",
+  "version": "1.0.0",
+  "description": "Browser-based garden room configurator with pricing engine",
+  "scripts": {
+    "test": "node test/pricing.test.js"
+  },
+  "author": "",
+  "license": "MIT"
+}
