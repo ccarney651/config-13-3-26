@@ -224,6 +224,28 @@ header h1 {
 .dim-label { font-size: 13px; color: var(--text); width: 50px; flex-shrink: 0; }
 .dim-value { font-size: 13px; font-weight: 600; color: var(--accent-dark); width: 44px; text-align: right; flex-shrink: 0; }
 
+/* ── Time-of-day toggle row ──────────────────────────────────────────────────── */
+.tod-header { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; margin-bottom: 2px; }
+.tod-header .dim-label { width: auto; }
+.tod-icon { font-size: 16px; flex-shrink: 0; width: 22px; text-align: center; }
+
+/* ── Toggle switch ───────────────────────────────────────────────────────────── */
+.toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--border); border-radius: 20px;
+  transition: background 0.2s;
+}
+.toggle-track::before {
+  content: ''; position: absolute;
+  width: 14px; height: 14px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle-switch input:checked + .toggle-track { background: var(--accent); }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
+
 input[type="range"] {
   flex: 1;
   -webkit-appearance: none;

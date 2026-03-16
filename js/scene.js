@@ -36,7 +36,9 @@ function markDirty(frames = 2) {
 // texLoader hoisted here — used by setGroundType and makeWallMat before their call sites
 const texLoader = new THREE.TextureLoader();
 
-// ── Lighting ──────────────────────────────────────────────────────────────────
+// ── Architectural flat lighting ───────────────────────────────────────────────
+// Strong hemisphere fills all shadows; one soft key light adds just enough
+// directionality to read depth without harsh contrast.
 const hemiLight = new THREE.HemisphereLight(0xd8eaf8, 0xc0d0b4, 1.7);
 scene.add(hemiLight);
 
@@ -52,65 +54,96 @@ sunLight.shadow.bias = -0.0003;
 scene.add(sunLight);
 scene.add(sunLight.target);
 
+// Fill from opposite side — brightens shadowed faces to near-ambient level
 const fillLight = new THREE.DirectionalLight(0xe8f0ff, 0.5);
 fillLight.position.set(-8, 6, -5);
 scene.add(fillLight);
 
+// Rear fill so back wall is never dark
 const backLight = new THREE.DirectionalLight(0xf4f0ff, 0.35);
 backLight.position.set(0, 5, -10);
 scene.add(backLight);
 
-// ── Lighting presets ──────────────────────────────────────────────────────────
-const LIGHTING = {
-  architectural: {
-    hemi:   { sky: 0xd8eaf8, ground: 0xc0d0b4, intensity: 1.7 },
-    sun:    { color: 0xfff8f4, intensity: 0.45, pos: [8, 14, 5] },
-    fill:   { color: 0xe8f0ff, intensity: 0.50, pos: [-8, 6, -5] },
-    back:   { color: 0xf4f0ff, intensity: 0.35, pos: [0, 5, -10] },
-    skyTop:     0xb8ccd8,
-    skyHorizon: 0xdde8ec,
-    fog:        0xdde8ec,
-  },
-  cinematic: {
-    // Golden-hour low sun — warm key, long shadows
-    hemi:   { sky: 0x7a8ca0, ground: 0x5a4830, intensity: 0.55 },
-    sun:    { color: 0xff9e50, intensity: 1.6,  pos: [14, 5, 8] },
-    fill:   { color: 0x2040a0, intensity: 0.25, pos: [-10, 8, -4] },
-    back:   { color: 0x4060c0, intensity: 0.40, pos: [-4, 10, -14] },
-    skyTop:     0x0d1a2e,
-    skyHorizon: 0xe8600a,
-    fog:        0xc05010,
-  },
-};
+// ── Time-of-day lighting ──────────────────────────────────────────────────────
+let _todEnabled = false;
 
-let _lightingMode = 'architectural';
-
-function setLightingMode(mode) {
-  _lightingMode = mode;
-  const p = LIGHTING[mode];
-  hemiLight.color.setHex(p.hemi.sky);
-  hemiLight.groundColor.setHex(p.hemi.ground);
-  hemiLight.intensity = p.hemi.intensity;
-  sunLight.color.setHex(p.sun.color);
-  sunLight.intensity = p.sun.intensity;
-  sunLight.position.set(...p.sun.pos);
-  fillLight.color.setHex(p.fill.color);
-  fillLight.intensity = p.fill.intensity;
-  fillLight.position.set(...p.fill.pos);
-  backLight.color.setHex(p.back.color);
-  backLight.intensity = p.back.intensity;
-  backLight.position.set(...p.back.pos);
-  skyDome.material.uniforms.uTop.value.setHex(p.skyTop);
-  skyDome.material.uniforms.uHorizon.value.setHex(p.skyHorizon);
-  skyDome.material.needsUpdate = true;
-  scene.fog.color.setHex(p.fog);
-  const btn = document.getElementById('tbLighting');
-  if (btn) btn.classList.toggle('active', mode === 'cinematic');
-  markDirty(4);
+function setTodEnabled(on) {
+  _todEnabled = on;
+  const row = document.getElementById('todSliderRow');
+  if (row) row.style.display = on ? 'flex' : 'none';
+  if (on) {
+    const slider = document.getElementById('todSlider');
+    setTimeOfDay(slider ? parseFloat(slider.value) : 10);
+  } else {
+    // Restore flat architectural lighting
+    hemiLight.color.setHex(0xd8eaf8);
+    hemiLight.groundColor.setHex(0xc0d0b4);
+    hemiLight.intensity = 1.7;
+    sunLight.color.setHex(0xfff8f4);
+    sunLight.intensity = 0.45;
+    sunLight.position.set(8, 14, 5);
+    fillLight.color.setHex(0xe8f0ff); fillLight.intensity = 0.5;
+    backLight.color.setHex(0xf4f0ff); backLight.intensity = 0.35;
+    skyDome.material.uniforms.uTop.value.setHex(0xb8ccd8);
+    skyDome.material.uniforms.uHorizon.value.setHex(0xdde8ec);
+    scene.fog.color.setHex(0xdde8ec);
+    markDirty(3);
+  }
 }
 
-function toggleLightingMode() {
-  setLightingMode(_lightingMode === 'architectural' ? 'cinematic' : 'architectural');
+function setTimeOfDay(hour) {
+  // hour: 0–24. Sun arc: rises at 6, sets at 20, peaks at 13.
+  const t = (hour - 6) / 14;            // 0 at sunrise, 1 at sunset
+  const sunUp = t > 0 && t < 1;
+
+  // Sun angle: sweeps from east (+X) over south (-Z) to west (-X)
+  const angle  = t * Math.PI;           // 0=east, π/2=south, π=west
+  const elev   = Math.max(0, Math.sin(angle));  // elevation 0→1→0
+  const sunX   = -Math.cos(angle) * 20;
+  const sunY   = elev * 18 + 0.5;
+  const sunZ   = -Math.abs(Math.sin(angle)) * 8;
+
+  // Sun colour: deep orange at low angles, pale yellow at zenith
+  const warm   = Math.max(0, 1 - elev * 2);     // 1 at horizon, 0 past 30°
+  const sunR   = 1.0;
+  const sunG   = 0.55 + elev * 0.40;
+  const sunB   = 0.15 + elev * 0.80;
+  sunLight.color.setRGB(sunR, sunG, sunB);
+  sunLight.intensity = sunUp ? 0.15 + elev * 1.8 : 0;
+  sunLight.position.set(sunX, sunY, sunZ);
+
+  // Night / day sky blend
+  const nightT = sunUp ? 0 : (hour < 6 ? 1 - hour / 6 : (hour - 20) / 4);
+  const dayT   = sunUp ? elev : 0;
+
+  // Sky: horizon glow at sunrise/set, deep blue at night, pale blue midday
+  const horizR = 0.47 + warm * 0.53 - nightT * 0.35;
+  const horizG = 0.65 + warm * 0.10 - nightT * 0.50;
+  const horizB = 0.78 - warm * 0.55 - nightT * 0.60;
+  const topR   = 0.05 + dayT * 0.37;
+  const topG   = 0.08 + dayT * 0.55;
+  const topB   = 0.18 + dayT * 0.60;
+  skyDome.material.uniforms.uHorizon.value.setRGB(Math.max(0,horizR), Math.max(0,horizG), Math.max(0,horizB));
+  skyDome.material.uniforms.uTop.value.setRGB(Math.max(0,topR), Math.max(0,topG), Math.max(0,topB));
+  scene.fog.color.setRGB(Math.max(0,horizR), Math.max(0,horizG), Math.max(0,horizB));
+
+  // Hemisphere: sky blue on top, warm ground bounce at golden hour
+  hemiLight.color.setRGB(Math.max(0,topR+0.15), Math.max(0,topG+0.1), Math.max(0,topB+0.05));
+  hemiLight.groundColor.setRGB(0.35 + warm*0.25, 0.28 + dayT*0.15, 0.18);
+  hemiLight.intensity = 0.3 + elev * 1.1 + nightT * 0;
+
+  // Fills stay at a constant low level for legibility
+  fillLight.intensity = 0.15 + elev * 0.25;
+  backLight.intensity = 0.10 + elev * 0.20;
+
+  // Update UI label and icon
+  const hh = Math.floor(hour), mm = Math.round((hour % 1) * 60);
+  const label = document.getElementById('todVal');
+  if (label) label.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  const icon = document.getElementById('todIcon');
+  if (icon) icon.textContent = hour < 6 || hour >= 20 ? '🌙' : hour < 8 || hour >= 18 ? '🌅' : '☀️';
+
+  markDirty(3);
 }
 
 // ─── GROUND ──────────────────────────────────────────────────────────────────

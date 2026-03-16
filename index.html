@@ -94,10 +94,6 @@
       <button class="tb-btn" onclick="setViewPreset('isometric')" title="Isometric view">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
       </button>
-      <span class="tb-sep"></span>
-      <button class="tb-btn" id="tbLighting" onclick="toggleLightingMode()" title="Toggle architectural / cinematic lighting">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-      </button>
     </div>
 
     <div class="specs-bar">
@@ -185,6 +181,20 @@
         <button class="option-btn" onclick="selectScene('patio',this)"><span class="opt-icon">&#129521;</span>Patio</button>
         <button class="option-btn" onclick="selectScene('gravel',this)"><span class="opt-icon">&#11036;</span>Gravel</button>
         <button class="option-btn" onclick="selectScene('sand',this)"><span class="opt-icon">&#127958;</span>Sand</button>
+      </div>
+      <!-- Time of day -->
+      <div class="tod-header">
+        <span class="dim-label">Time of Day</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="todEnabled" onchange="setTodEnabled(this.checked)">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <div id="todSliderRow" class="dim-row" style="display:none; margin-top:4px">
+        <span class="tod-icon" id="todIcon">☀️</span>
+        <input type="range" id="todSlider" min="0" max="24" step="0.25" value="10"
+               oninput="setTimeOfDay(parseFloat(this.value))">
+        <span class="dim-value" id="todVal">10:00</span>
       </div>
     </div>
     <!-- ── Designs: presets, save, load ── -->
