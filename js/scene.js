@@ -36,9 +36,7 @@ function markDirty(frames = 2) {
 // texLoader hoisted here — used by setGroundType and makeWallMat before their call sites
 const texLoader = new THREE.TextureLoader();
 
-// ── Architectural flat lighting ───────────────────────────────────────────────
-// Strong hemisphere fills all shadows; one soft key light adds just enough
-// directionality to read depth without harsh contrast.
+// ── Lighting ──────────────────────────────────────────────────────────────────
 const hemiLight = new THREE.HemisphereLight(0xd8eaf8, 0xc0d0b4, 1.7);
 scene.add(hemiLight);
 
@@ -54,15 +52,66 @@ sunLight.shadow.bias = -0.0003;
 scene.add(sunLight);
 scene.add(sunLight.target);
 
-// Fill from opposite side — brightens shadowed faces to near-ambient level
 const fillLight = new THREE.DirectionalLight(0xe8f0ff, 0.5);
 fillLight.position.set(-8, 6, -5);
 scene.add(fillLight);
 
-// Rear fill so back wall is never dark
 const backLight = new THREE.DirectionalLight(0xf4f0ff, 0.35);
 backLight.position.set(0, 5, -10);
 scene.add(backLight);
+
+// ── Lighting presets ──────────────────────────────────────────────────────────
+const LIGHTING = {
+  architectural: {
+    hemi:   { sky: 0xd8eaf8, ground: 0xc0d0b4, intensity: 1.7 },
+    sun:    { color: 0xfff8f4, intensity: 0.45, pos: [8, 14, 5] },
+    fill:   { color: 0xe8f0ff, intensity: 0.50, pos: [-8, 6, -5] },
+    back:   { color: 0xf4f0ff, intensity: 0.35, pos: [0, 5, -10] },
+    skyTop:     0xb8ccd8,
+    skyHorizon: 0xdde8ec,
+    fog:        0xdde8ec,
+  },
+  cinematic: {
+    // Golden-hour low sun — warm key, long shadows
+    hemi:   { sky: 0x7a8ca0, ground: 0x5a4830, intensity: 0.55 },
+    sun:    { color: 0xff9e50, intensity: 1.6,  pos: [14, 5, 8] },
+    fill:   { color: 0x2040a0, intensity: 0.25, pos: [-10, 8, -4] },
+    back:   { color: 0x4060c0, intensity: 0.40, pos: [-4, 10, -14] },
+    skyTop:     0x0d1a2e,
+    skyHorizon: 0xe8600a,
+    fog:        0xc05010,
+  },
+};
+
+let _lightingMode = 'architectural';
+
+function setLightingMode(mode) {
+  _lightingMode = mode;
+  const p = LIGHTING[mode];
+  hemiLight.color.setHex(p.hemi.sky);
+  hemiLight.groundColor.setHex(p.hemi.ground);
+  hemiLight.intensity = p.hemi.intensity;
+  sunLight.color.setHex(p.sun.color);
+  sunLight.intensity = p.sun.intensity;
+  sunLight.position.set(...p.sun.pos);
+  fillLight.color.setHex(p.fill.color);
+  fillLight.intensity = p.fill.intensity;
+  fillLight.position.set(...p.fill.pos);
+  backLight.color.setHex(p.back.color);
+  backLight.intensity = p.back.intensity;
+  backLight.position.set(...p.back.pos);
+  skyDome.material.uniforms.uTop.value.setHex(p.skyTop);
+  skyDome.material.uniforms.uHorizon.value.setHex(p.skyHorizon);
+  skyDome.material.needsUpdate = true;
+  scene.fog.color.setHex(p.fog);
+  const btn = document.getElementById('tbLighting');
+  if (btn) btn.classList.toggle('active', mode === 'cinematic');
+  markDirty(4);
+}
+
+function toggleLightingMode() {
+  setLightingMode(_lightingMode === 'architectural' ? 'cinematic' : 'architectural');
+}
 
 // ─── GROUND ──────────────────────────────────────────────────────────────────
 
