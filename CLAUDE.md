@@ -120,6 +120,21 @@ need sign-off before the `_v2`/`_v3` suffixes can be replaced with meaningful na
 - `updatePriceDisplay()` in ui.js is called whenever any pricing option changes
 - Quote modal is generated fresh each time it opens from current state
 
+## 3D controls (added)
+- **Apex pitch slider** — `state.apexPitch` (0.3–2.5m), shown when roof=apex, hidden when flat
+- **Flat roof tilt slider** — `state.roofTilt` (0–10°), shown when roof=flat, hidden when apex
+- **Veranda depth slider** — `state.veranda.depth` (1–4m), shown when `roofPorchItems.veranda > 0`
+- **Veranda 3D** — wired to `state.roofPorchItems.veranda > 0` (was broken, used `state.veranda.enabled`)
+- **Apex roof trim** — gable rake boards (diagonal trim) and side eave fascia boards added to buildRoof()
+
+## Save / Load / Presets (added)
+- `saveDesign()` / `loadDesign(name)` / `deleteDesign(name)` — localStorage, key prefix `gardenroom_design_`
+- `downloadDesign()` / `uploadDesignFile(input)` — JSON file export/import
+- `DESIGN_PRESETS` array — 4 hardcoded presets: Garden Office, Summer House, Studio/Bar, Compact Retreat
+- `loadPreset(index)` — applies a preset snapshot; `renderDesignsList()` — renders saved designs list
+- `_applyStateSnapshot(snap)` — shared helper that applies a state object and refreshes all UI + 3D
+- Designs UI lives in the Style tab (bottom), presets are a 2×2 button grid
+
 ## Context
 - Developer is a trainee (Development & Automation role) at a multi-brand garden/outdoor products company in Northern Ireland
 - This is an internal project being built incrementally alongside other responsibilities

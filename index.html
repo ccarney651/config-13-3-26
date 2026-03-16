@@ -49,7 +49,7 @@
 <div class="main">
   <div class="viewport">
     <canvas id="canvas"></canvas>
-    <div class="view-hint">Drag to orbit · <kbd>Shift</kbd>+drag to pan · Scroll to zoom · Drag arrows to resize</div>
+    <div class="view-hint">Drag to orbit · Right-click drag to pan · Scroll to zoom · Drag arrows to resize</div>
 
     <!-- Drop zone overlay (shown when dragging a panel item) -->
     <div class="drop-overlay" id="dropOverlay">
@@ -98,12 +98,26 @@
 
     <div class="specs-bar">
       <h3>Specifications</h3>
-      <div class="spec-row"><span>Width</span>  <span id="spec-width">5.0m</span></div>
-      <div class="spec-row"><span>Depth</span>  <span id="spec-depth">4.0m</span></div>
-      <div class="spec-row"><span>Height</span> <span id="spec-height">2.7m</span></div>
-      <div class="spec-row"><span>Floor Area</span><span id="spec-area">20.0m²</span></div>
-      <div class="spec-row"><span>Roof</span>   <span id="spec-roof">Apex</span></div>
-      <div class="spec-row"><span>Foundation</span><span id="spec-found">Concrete</span></div>
+      <div class="spec-row"><span>Width</span>       <span id="spec-width">5.0m</span></div>
+      <div class="spec-row"><span>Depth</span>       <span id="spec-depth">4.0m</span></div>
+      <div class="spec-row"><span>Height</span>      <span id="spec-height">2.7m</span></div>
+      <div class="spec-row"><span>Floor Area</span>  <span id="spec-area">20.0m²</span></div>
+      <div class="spec-row"><span>Wall Area</span>   <span id="spec-wall-area">—</span></div>
+      <div class="spec-divider"></div>
+      <div class="spec-row"><span>Foundation</span>  <span id="spec-found">Concrete</span></div>
+      <div class="spec-row"><span>Roof</span>        <span id="spec-roof">Apex</span></div>
+      <div class="spec-row"><span>Cladding</span>    <span id="spec-cladding">—</span></div>
+      <div class="spec-row"><span>Interior Walls</span><span id="spec-int-walls">—</span></div>
+      <div class="spec-row"><span>Interior Floor</span><span id="spec-int-floor">—</span></div>
+      <div class="spec-divider"></div>
+      <details class="spec-details">
+        <summary class="spec-summary">Doors &amp; Windows <span id="spec-openings-count" class="spec-badge">0</span></summary>
+        <div id="spec-openings-list" class="spec-sub-list"><div class="spec-empty">None added</div></div>
+      </details>
+      <details class="spec-details">
+        <summary class="spec-summary">Extras &amp; Additions <span id="spec-extras-count" class="spec-badge">0</span></summary>
+        <div id="spec-extras-list" class="spec-sub-list"><div class="spec-empty">None added</div></div>
+      </details>
     </div>
   </div>
 </div>
@@ -169,15 +183,35 @@
         <button class="option-btn" onclick="selectScene('sand',this)"><span class="opt-icon">&#127958;</span>Sand</button>
       </div>
     </div>
+    <!-- ── Designs: presets, save, load ── -->
     <div class="section">
-      <div class="section-title">Time of Day</div>
-      <div class="dim-row">
-        <span class="dim-label" style="width:36px;font-size:18px;text-align:center">&#127774;</span>
-        <input type="range" id="todSlider" min="0" max="1" step="0.01" value="0.55"
-               oninput="if(typeof setTimeOfDay==='function') setTimeOfDay(parseFloat(this.value))">
-        <span class="dim-label" style="width:36px;font-size:18px;text-align:center">&#127762;</span>
+      <div class="section-title">Presets</div>
+      <div class="option-grid cols3" style="margin-bottom:8px">
+        <button class="option-btn" onclick="loadPreset(0)" title="Garden Office — 5×4 apex cedar sliding door">Garden Office</button>
+        <button class="option-btn" onclick="loadPreset(1)" title="Summer House — 4×3 apex shiplap double doors">Summer House</button>
+        <button class="option-btn" onclick="loadPreset(2)" title="Studio/Bar — 6×4 flat charcoal bifold">Studio / Bar</button>
+        <button class="option-btn" onclick="loadPreset(3)" title="Compact Retreat — 3×3 apex loglap">Compact Retreat</button>
       </div>
     </div>
+
+    <div class="section">
+      <div class="section-title">Saved Designs</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+        <input id="designNameInput" type="text" placeholder="Design name…"
+               style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);color:var(--text)"
+               onkeydown="if(event.key==='Enter') saveDesign()">
+        <button class="option-btn" style="width:auto;padding:6px 14px;flex-shrink:0" onclick="saveDesign()">Save</button>
+      </div>
+      <div id="savedDesignsList"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="option-btn" style="flex:1;padding:6px 10px;font-size:12px" onclick="downloadDesign()">⬇ Export JSON</button>
+        <label class="option-btn" style="flex:1;padding:6px 10px;font-size:12px;text-align:center;cursor:pointer">
+          ⬆ Import JSON
+          <input type="file" accept=".json" style="display:none" onchange="uploadDesignFile(this)">
+        </label>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── TAB: Roof & Porch ───────────────────────────────────────────── -->
@@ -194,8 +228,22 @@
 
         <button class="option-btn active" onclick="selectOpt('roof','apex',this)"><span class="opt-icon">▲</span>Apex</button>
 
+      </div>
 
+      <!-- Apex pitch slider — shown when roof = apex -->
+      <div id="apexPitchRow" class="dim-row" style="margin-top:12px">
+        <span class="dim-label">Pitch</span>
+        <input type="range" id="apexPitchSlider" min="0.3" max="2.0" step="0.05" value="1.0"
+               oninput="setApexPitch(this.value); document.getElementById('apexPitchVal').textContent = parseFloat(this.value).toFixed(2) + 'm'">
+        <span class="dim-value" id="apexPitchVal">1.00m</span>
+      </div>
 
+      <!-- Flat roof tilt slider — shown when roof = flat -->
+      <div id="roofTiltRow" class="dim-row" style="margin-top:12px; display:none">
+        <span class="dim-label">Tilt</span>
+        <input type="range" id="roofTiltSlider" min="0" max="10" step="0.5" value="2"
+               oninput="setRoofTilt(this.value); document.getElementById('roofTiltVal').textContent = parseFloat(this.value).toFixed(1) + '°'">
+        <span class="dim-value" id="roofTiltVal">2.0°</span>
       </div>
 
     </div>
@@ -313,6 +361,13 @@
       <span class="qty-val" id="qty-veranda">0</span>
       <button class="qty-btn" onclick="updateItemQty('roofPorchItems','veranda',1)">+</button>
     </div>
+  </div>
+  <!-- Veranda depth slider — shown when veranda qty > 0 -->
+  <div id="verandaDepthRow" class="dim-row" style="display:none; padding:8px 0 4px">
+    <span class="dim-label">Depth</span>
+    <input type="range" id="verandaDepthSlider" min="1.0" max="4.0" step="0.25" value="2.0"
+           oninput="setVerandaDepth(this.value)">
+    <span class="dim-value" id="verandaDepthVal">2.0m</span>
   </div>
   <div class="qty-item">
     <div class="qty-item-img"></div>
@@ -3516,9 +3571,12 @@
   // ── Initialise ──────────────────────────────────────────────────────────
   if (tryLoadFromURL()) { /* URL hash decoded into state */ }
   syncSwatchesToState();
+  syncRoofSliders();
+  syncVerandaDepthSlider();
   buildRoom();
   updatePriceDisplay();
   renderOpeningsList();
+  renderDesignsList();
   updatePaletteUI();
   stateHistory.push(); // capture baseline — makes the first user action undoable
 </script>

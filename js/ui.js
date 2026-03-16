@@ -22,6 +22,87 @@ document.addEventListener('keydown', e => {
 function updatePriceDisplay() {
   const total = calcTotal(state);
   document.getElementById('totalPrice').textContent = fmt(total);
+  updateSpecsBar();
+}
+
+// ─── SPECS BAR ───────────────────────────────────────────────────────────────
+
+function updateSpecsBar() {
+  const el = id => document.getElementById(id);
+  const u  = state.units === 'imperial';
+  const s  = v => u ? (v * 3.281).toFixed(1) + 'ft'  : v.toFixed(2) + 'm';
+  const s2 = v => u ? (v * 10.764).toFixed(0) + 'ft²' : v.toFixed(1) + 'm²';
+
+  // Dimensions
+  if (el('spec-width'))  el('spec-width').textContent  = s(state.width);
+  if (el('spec-depth'))  el('spec-depth').textContent  = s(state.depth);
+  if (el('spec-height')) el('spec-height').textContent = s(state.height);
+  if (el('spec-area'))   el('spec-area').textContent   = s2(state.width * state.depth);
+  const wallArea = (state.width * 2 + state.depth * 2) * state.height;
+  if (el('spec-wall-area')) el('spec-wall-area').textContent = s2(wallArea);
+
+  // Materials — resolve human-readable labels from the catalogue
+  const label = key => {
+    if (!key) return '—';
+    const it = getItem(key);
+    if (it) return it.label;
+    // Fallback: title-case the key
+    return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+  const FOUNDATION_LABELS = { concrete: 'Concrete', block: 'Block', ground_screws: 'Ground Screws' };
+  const roofLabel    = state.roof === 'apex' ? 'Apex' : 'Flat';
+  const finishLabel  = label(state.roofFinish);
+  if (el('spec-found'))      el('spec-found').textContent      = FOUNDATION_LABELS[state.foundation] || label(state.foundation);
+  if (el('spec-roof'))       el('spec-roof').textContent       = roofLabel + (finishLabel !== '—' ? ' · ' + finishLabel : '');
+  if (el('spec-cladding'))   el('spec-cladding').textContent   = label(state.cladding);
+  if (el('spec-int-walls'))  el('spec-int-walls').textContent  = label(state.interiorWalls);
+  if (el('spec-int-floor'))  el('spec-int-floor').textContent  = label(state.interiorFloor);
+
+  // Doors & Windows
+  const openingsList = el('spec-openings-list');
+  const openingsCount = el('spec-openings-count');
+  if (openingsList) {
+    const ops = state.openings || [];
+    if (openingsCount) openingsCount.textContent = ops.length;
+    openingsList.innerHTML = ops.length ? ops.map(op => {
+      const wallName  = op.wall.charAt(0).toUpperCase() + op.wall.slice(1) + ' wall';
+      const styleName = label(op.style) !== '—' ? label(op.style) : (op.type === 'door' ? 'Door' : 'Window');
+      return `<div class="spec-sub-row"><span>${wallName}</span><span>${styleName}</span></div>`;
+    }).join('') : '<div class="spec-empty">None added</div>';
+  }
+
+  // Extras & Additions
+  const extrasList  = el('spec-extras-list');
+  const extrasCount = el('spec-extras-count');
+  if (extrasList) {
+    const rows = [];
+    const qtyGroups = ['electricalItems','bathroomItems','heatingItems','structuralItems','roofPorchItems','miscItems'];
+    qtyGroups.forEach(group => {
+      Object.entries(state[group] || {}).forEach(([key, qty]) => {
+        if (qty > 0) {
+          const it = getItem(key);
+          rows.push([it ? it.label : key, qty + '×']);
+        }
+      });
+    });
+    // Boolean services
+    [
+      ['mainsConnection',       'Mains Connection'],
+      ['ethernetConnection',    'Ethernet Connection'],
+      ['waterWasteConnection',  'Water & Waste'],
+      ['groundProtectionMats',  'Ground Protection Mats'],
+      ['skipHire',              'Skip Hire'],
+      ['groundworks',           'Groundworks'],
+    ].forEach(([key, lbl]) => { if (state[key]) rows.push([lbl, '✓']); });
+    // Decking
+    if (state.extras && state.extras.decking)
+      rows.push(['Decking', s2(state.deckingArea)]);
+
+    if (extrasCount) extrasCount.textContent = rows.length;
+    extrasList.innerHTML = rows.length
+      ? rows.map(([l, v]) => `<div class="spec-sub-row"><span>${l}</span><span>${v}</span></div>`).join('')
+      : '<div class="spec-empty">None added</div>';
+  }
 }
 
 // ─── DIMENSIONS ─────────────────────────────────────────────────────────────────
@@ -44,12 +125,7 @@ function syncDimSliders() {
   document.getElementById('widthVal').textContent  = s(w);
   document.getElementById('depthVal').textContent  = s(d);
   document.getElementById('heightVal').textContent = s(h);
-  // Specs bar
-  const el = id => document.getElementById(id);
-  if (el('spec-width'))  el('spec-width').textContent  = s(w);
-  if (el('spec-depth'))  el('spec-depth').textContent  = s(d);
-  if (el('spec-height')) el('spec-height').textContent = s(h);
-  if (el('spec-area'))   el('spec-area').textContent   = u ? (w*d*10.764).toFixed(0)+'ft²' : (w*d).toFixed(1)+'m²';
+  updateSpecsBar();
 }
 
 function toggleUnits() {
@@ -70,11 +146,8 @@ function selectOpt(key, value, el) {
   stateHistory.push();
   buildRoom();
   updatePriceDisplay();
-  // Update specs bar
-  const sf = document.getElementById('spec-found');
-  if (sf && key === 'foundation') sf.textContent = el ? el.textContent.trim().split('\n')[0] : value;
-  const sr = document.getElementById('spec-roof');
-  if (sr && key === 'roof') sr.textContent = el ? el.textContent.trim().split('\n')[0] : value;
+  // Show/hide roof pitch/tilt sliders when roof type changes
+  if (key === 'roof') syncRoofSliderVisibility();
 }
 
 // ─── SCENE ──────────────────────────────────────────────────────────────────────
@@ -282,6 +355,12 @@ function updateItemQty(stateObj, key, delta) {
     if (row) row.classList.toggle('has-qty', newVal > 0);
   }
 
+  // If veranda qty changed, rebuild 3D and sync depth slider visibility
+  if (stateObj === 'roofPorchItems' && key === 'veranda') {
+    syncVerandaDepthSlider();
+    buildRoom();
+  }
+
   stateHistory.push();
   updatePriceDisplay();
 }
@@ -378,6 +457,10 @@ function syncSwatchesToState() {
   if (chkGw) chkGw.checked = !!state.groundworks;
   // Sync electrics disabled state
   if (typeof syncElectricsUI === 'function') syncElectricsUI();
+  // Sync roof pitch/tilt sliders
+  if (typeof syncRoofSliders === 'function') syncRoofSliders();
+  // Sync veranda depth slider
+  if (typeof syncVerandaDepthSlider === 'function') syncVerandaDepthSlider();
 }
 
 // ─── DESIGN FLIP ────────────────────────────────────────────────────────────────
@@ -399,7 +482,7 @@ function setViewPreset(name) {
   if (typeof setView === 'function') setView(name);
 }
 
-// ─── ROOF CONTROLS (kept from original) ─────────────────────────────────────────
+// ─── ROOF CONTROLS ───────────────────────────────────────────────────────────────
 
 function setRoofTilt(val) {
   state.roofTilt = parseFloat(val);
@@ -408,9 +491,241 @@ function setRoofTilt(val) {
 }
 
 function setApexPitch(val) {
-  state.apexPitch = parseFloat(val);
+  state.apexPitch = Math.min(2.0, parseFloat(val));
   stateHistory.push();
   buildRoom();
+}
+
+function syncRoofSliderVisibility() {
+  const isApex = state.roof === 'apex';
+  const apexRow = document.getElementById('apexPitchRow');
+  const tiltRow = document.getElementById('roofTiltRow');
+  if (apexRow) apexRow.style.display = isApex ? '' : 'none';
+  if (tiltRow) tiltRow.style.display = isApex ? 'none' : '';
+}
+
+// ─── VERANDA CONTROLS ────────────────────────────────────────────────────────────
+
+function setVerandaDepth(val) {
+  state.veranda = state.veranda || {};
+  state.veranda.depth = parseFloat(val);
+  document.getElementById('verandaDepthVal').textContent = parseFloat(val).toFixed(2) + 'm';
+  stateHistory.push();
+  buildRoom();
+}
+
+function syncVerandaDepthSlider() {
+  const qty = state.roofPorchItems?.veranda ?? 0;
+  const row = document.getElementById('verandaDepthRow');
+  if (row) row.style.display = qty > 0 ? '' : 'none';
+  const slider = document.getElementById('verandaDepthSlider');
+  const val    = document.getElementById('verandaDepthVal');
+  const depth  = state.veranda?.depth ?? 2.0;
+  if (slider) slider.value = depth;
+  if (val)    val.textContent = depth.toFixed(2) + 'm';
+}
+
+// ─── ROOF SLIDERS ─────────────────────────────────────────────────────────────
+
+function syncRoofSliders() {
+  const pitchSlider = document.getElementById('apexPitchSlider');
+  const pitchVal    = document.getElementById('apexPitchVal');
+  if (pitchSlider) pitchSlider.value = state.apexPitch ?? 1.0;
+  if (pitchVal)    pitchVal.textContent = (state.apexPitch ?? 1.0).toFixed(2) + 'm';
+
+  const tiltSlider = document.getElementById('roofTiltSlider');
+  const tiltVal    = document.getElementById('roofTiltVal');
+  if (tiltSlider) tiltSlider.value = state.roofTilt ?? 2;
+  if (tiltVal)    tiltVal.textContent = (state.roofTilt ?? 2).toFixed(1) + '°';
+
+  syncRoofSliderVisibility();
+}
+
+// ─── SAVE / LOAD / PRESETS ───────────────────────────────────────────────────────
+
+const DESIGN_STORAGE_PREFIX = 'gardenroom_design_';
+
+// Hardcoded starting presets — loaded once if localStorage has no saved designs yet.
+const DESIGN_PRESETS = [
+  {
+    name: 'Garden Office',
+    state: {
+      width: 5.0, depth: 4.0, height: 2.7,
+      roof: 'apex', apexPitch: 1.0, roofTilt: 2,
+      roofFinish: 'epdm_black_roofing',
+      cladding: 'vertical_cedar_cladding', claddingTint: '#5c4033',
+      frameColour: '#1a1a1a',
+      openings: [
+        { id: 1, type: 'door',   wall: 'front', offset: 0,    style: 'sliding_2_part_door' },
+        { id: 2, type: 'window', wall: 'left',  offset: 0,    style: 'fixed_window' },
+        { id: 3, type: 'window', wall: 'right', offset: 0,    style: 'fixed_window' },
+      ],
+      nextOpeningId: 4,
+      interiorWalls: 'white_finished_walls', interiorFloor: 'oak_flooring',
+      guttering: 'gutter_black',
+    }
+  },
+  {
+    name: 'Summer House',
+    state: {
+      width: 5.0, depth: 3.0, height: 2.5,
+      roof: 'apex', apexPitch: 1.3, roofTilt: 0,
+      roofFinish: 'shingles_square_black_roofing',
+      cladding: 'shiplap_horizontal_cladding', claddingTint: '#8b6914',
+      frameColour: '#5b2019',
+      openings: [
+        { id: 1, type: 'door',   wall: 'front', offset: 0,   style: 'double_door' },
+        { id: 2, type: 'window', wall: 'left',  offset: 0,   style: 'tilt_n_turn_window' },
+        { id: 3, type: 'window', wall: 'right', offset: 0,   style: 'tilt_n_turn_window' },
+        { id: 4, type: 'window', wall: 'front', offset: -1.5, style: 'fixed_window' },
+        { id: 5, type: 'window', wall: 'front', offset:  1.5, style: 'fixed_window' },
+      ],
+      nextOpeningId: 6,
+      interiorWalls: 'tongue_and_groove_walls', interiorFloor: 'farm_oak_flooring',
+      guttering: 'gutter_black',
+    }
+  },
+  {
+    name: 'Studio / Bar',
+    state: {
+      width: 6.0, depth: 4.0, height: 2.7,
+      roof: 'flat', apexPitch: 1.0, roofTilt: 3,
+      roofFinish: 'epdm_black_roofing',
+      cladding: 'horizontal_midnight_charcoal_cladding', claddingTint: '#2a2a2a',
+      frameColour: '#111111',
+      openings: [
+        { id: 1, type: 'door',   wall: 'front', offset: 0,   style: 'bifold_door' },
+        { id: 2, type: 'window', wall: 'left',  offset: 0,   style: 'long_panel_window' },
+        { id: 3, type: 'window', wall: 'right', offset: 0,   style: 'long_panel_window' },
+      ],
+      nextOpeningId: 4,
+      interiorWalls: 'white_finished_walls', interiorFloor: 'polished_concrete_flooring',
+      guttering: 'gutter_black',
+    }
+  },
+  {
+    name: 'Compact Retreat',
+    state: {
+      width: 3.0, depth: 3.0, height: 2.5,
+      roof: 'apex', apexPitch: 0.8, roofTilt: 0,
+      roofFinish: 'shingles_square_black_roofing',
+      cladding: 'vertical_loglap_cladding', claddingTint: '#7a5533',
+      frameColour: '#3b2a1a',
+      openings: [
+        { id: 1, type: 'door',   wall: 'front', offset: 0, style: 'single_door' },
+        { id: 2, type: 'window', wall: 'left',  offset: 0, style: 'tilt_n_turn_window' },
+        { id: 3, type: 'window', wall: 'back',  offset: 0, style: 'fixed_window' },
+      ],
+      nextOpeningId: 4,
+      interiorWalls: 'plywood_walls', interiorFloor: 'oak_flooring',
+      guttering: 'gutter_black',
+    }
+  },
+];
+
+// Apply a plain state snapshot to the live state object, then refresh all UI and 3D.
+function _applyStateSnapshot(snap) {
+  stateHistory._paused = true;
+  Object.keys(snap).forEach(k => {
+    if (typeof snap[k] === 'object' && snap[k] !== null && !Array.isArray(snap[k])) {
+      if (typeof state[k] === 'object' && state[k] !== null) {
+        Object.assign(state[k], snap[k]);
+      } else {
+        state[k] = snap[k];
+      }
+    } else {
+      state[k] = snap[k];
+    }
+  });
+  stateHistory._paused = false;
+  stateHistory.push();
+  buildRoom();
+  updatePriceDisplay();
+  syncSwatchesToState();
+  syncDimSliders();
+  renderOpeningsList();
+}
+
+// ── Presets ──────────────────────────────────────────────────────────────────────
+
+function loadPreset(index) {
+  const preset = DESIGN_PRESETS[index];
+  if (!preset) return;
+  _applyStateSnapshot(preset.state);
+}
+
+// ── Save / Load (localStorage) ──────────────────────────────────────────────────
+
+function saveDesign() {
+  const name = document.getElementById('designNameInput')?.value.trim();
+  if (!name) { alert('Please enter a name for your design.'); return; }
+  try {
+    localStorage.setItem(DESIGN_STORAGE_PREFIX + name, JSON.stringify(state));
+    renderDesignsList();
+    document.getElementById('designNameInput').value = '';
+  } catch(e) { alert('Could not save design: ' + e.message); }
+}
+
+function loadDesign(name) {
+  try {
+    const raw = localStorage.getItem(DESIGN_STORAGE_PREFIX + name);
+    if (!raw) return;
+    _applyStateSnapshot(JSON.parse(raw));
+  } catch(e) { alert('Could not load design: ' + e.message); }
+}
+
+function deleteDesign(name) {
+  localStorage.removeItem(DESIGN_STORAGE_PREFIX + name);
+  renderDesignsList();
+}
+
+function getSavedDesignNames() {
+  return Object.keys(localStorage)
+    .filter(k => k.startsWith(DESIGN_STORAGE_PREFIX))
+    .map(k => k.slice(DESIGN_STORAGE_PREFIX.length))
+    .sort();
+}
+
+function renderDesignsList() {
+  const container = document.getElementById('savedDesignsList');
+  if (!container) return;
+  const names = getSavedDesignNames();
+  if (!names.length) {
+    container.innerHTML = '<p class="helper-text" style="margin:4px 0;font-size:12px;color:var(--muted)">No saved designs yet.</p>';
+    return;
+  }
+  container.innerHTML = names.map(name => `
+    <div class="opening-row">
+      <span class="opening-label" style="flex:1;font-size:13px">${name}</span>
+      <button class="qty-btn" style="padding:3px 10px;font-size:12px" onclick="loadDesign(${JSON.stringify(name)})">Load</button>
+      <button class="qty-btn" style="padding:3px 8px;font-size:12px;margin-left:4px;color:#e55" onclick="deleteDesign(${JSON.stringify(name)})" title="Delete">✕</button>
+    </div>`).join('');
+}
+
+// ── Download / Upload (file) ─────────────────────────────────────────────────────
+
+function downloadDesign() {
+  const json = JSON.stringify(state, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'garden-room-design.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function uploadDesignFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      _applyStateSnapshot(JSON.parse(e.target.result));
+    } catch(err) { alert('Could not read design file: ' + err.message); }
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 // ─── URL HASH SHARE ─────────────────────────────────────────────────────────────

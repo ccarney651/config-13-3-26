@@ -36,26 +36,33 @@ function markDirty(frames = 2) {
 // texLoader hoisted here — used by setGroundType and makeWallMat before their call sites
 const texLoader = new THREE.TextureLoader();
 
-// Hemisphere light: sky colour from above, ground bounce from below
-// This gives PBR materials (MeshStandardMaterial) a much more natural base
-const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x5a8a3a, 0.55);
+// ── Architectural flat lighting ───────────────────────────────────────────────
+// Strong hemisphere fills all shadows; one soft key light adds just enough
+// directionality to read depth without harsh contrast.
+const hemiLight = new THREE.HemisphereLight(0xd8eaf8, 0xc0d0b4, 1.7);
 scene.add(hemiLight);
 
-const sunLight = new THREE.DirectionalLight(0xfff8e7, 1.1);
-sunLight.position.set(8, 12, 6);
+const sunLight = new THREE.DirectionalLight(0xfff8f4, 0.45);
+sunLight.position.set(8, 14, 5);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
 sunLight.shadow.camera.left   = -16;
 sunLight.shadow.camera.right  =  16;
 sunLight.shadow.camera.top    =  16;
 sunLight.shadow.camera.bottom = -16;
-sunLight.shadow.bias = -0.0003;   // reduce shadow acne on flat surfaces
+sunLight.shadow.bias = -0.0003;
 scene.add(sunLight);
 scene.add(sunLight.target);
 
-const fillLight = new THREE.DirectionalLight(0xd0e8ff, 0.28);
-fillLight.position.set(-5, 3, -5);
+// Fill from opposite side — brightens shadowed faces to near-ambient level
+const fillLight = new THREE.DirectionalLight(0xe8f0ff, 0.5);
+fillLight.position.set(-8, 6, -5);
 scene.add(fillLight);
+
+// Rear fill so back wall is never dark
+const backLight = new THREE.DirectionalLight(0xf4f0ff, 0.35);
+backLight.position.set(0, 5, -10);
+scene.add(backLight);
 
 // ─── GROUND ──────────────────────────────────────────────────────────────────
 
@@ -132,7 +139,7 @@ scene.add(grassGlow);
 // plane. Radius 60m safely contains the 80×80m ground including its corners
 // (max 56.6m diagonal). Fog is applied so it dissolves naturally into the sky.
 const fogCylMat = new THREE.MeshBasicMaterial({
-  color: 0xd5e6d0,   // initialised to grass fog colour; updated in setGroundType / applyTOD
+  color: 0xd5e6d0,   // initialised to grass fog colour; updated in setGroundType
   side: THREE.BackSide,
   fog: true,
 });
@@ -172,12 +179,16 @@ scene.add(grid);
 
 const buildingGroup = new THREE.Group();
 const handlesGroup  = new THREE.Group();
+const edgeHandleGroup = new THREE.Group();
 scene.add(buildingGroup);
 scene.add(handlesGroup);
+scene.add(edgeHandleGroup);
 
 // Exterior wall meshes collected during buildWallFace so interior view can
 // update their opacity each frame based on camera position.
 const wallMeshes = { front: [], back: [], left: [], right: [] };
+// Corner post meshes collected during buildRoom — avoids per-frame traverse.
+const cornerPostMeshes = [];
 
 // Outward normals for each wall — used to determine which walls face the camera.
 const WALL_NORMALS = {
@@ -194,80 +205,13 @@ const WALL_NORMALS = {
 let _buildGen = 0;
 
 // ─── SKY DOME ──────────────────────────────────────────────────────────────────
-// ─── TIME OF DAY ────────────────────────────────────────────────────────────
-// tod = 0.0 (dawn) → 0.5 (midday) → 1.0 (dusk)
-let tod = 0.55;  // default: mid-afternoon
-
-const TOD_PRESETS = [
-  // tod,  skyTop,    horizon,   sunColor,  sunIntensity, fillColor, fogColor
-  { t: 0.0, top: 0xff9966, hor: 0xffcc88, sun: 0xff8844, si: 0.6,  fill: 0xffd4a0, fog: 0xffcc88 }, // dawn
-  { t: 0.3, top: 0x6aabda, hor: 0xd4e8f8, sun: 0xfff5dd, si: 1.0,  fill: 0xd0e8ff, fog: 0xd4e8f8 }, // morning
-  { t: 0.55,top: 0x4a90c4, hor: 0xd5e6d0, sun: 0xfff8e7, si: 1.1,  fill: 0xd0e8ff, fog: 0xd5e6d0 }, // afternoon (default)
-  { t: 0.75,top: 0x3a6080, hor: 0xffc870, sun: 0xff9944, si: 0.85, fill: 0xffa060, fog: 0xffc870 }, // golden hour
-  { t: 1.0, top: 0x1a2840, hor: 0xff7744, sun: 0xff4422, si: 0.4,  fill: 0x334466, fog: 0xff7744 }, // dusk
-];
-
-function lerpPresets(t) {
-  const presets = TOD_PRESETS;
-  let lo = presets[0], hi = presets[presets.length - 1];
-  for (let i = 0; i < presets.length - 1; i++) {
-    if (t >= presets[i].t && t <= presets[i+1].t) { lo = presets[i]; hi = presets[i+1]; break; }
-  }
-  const f = lo.t === hi.t ? 0 : (t - lo.t) / (hi.t - lo.t);
-  function lc(a, b) { return new THREE.Color(a).lerp(new THREE.Color(b), f); }
-  return {
-    top: lc(lo.top, hi.top), hor: lc(lo.hor, hi.hor),
-    sun: lc(lo.sun, hi.sun), si: lo.si + (hi.si - lo.si) * f,
-    fill: lc(lo.fill, hi.fill), fog: lc(lo.fog, hi.fog),
-  };
-}
-
-function applyTOD(t) {
-  tod = Math.max(0, Math.min(1, t));
-  const p = lerpPresets(tod);
-  skyDome.material.uniforms.uTop.value.copy(p.top);
-  skyDome.material.uniforms.uHorizon.value.copy(p.hor);
-  skyDome.material.uniforms.uSunDir.value.copy(getSunDir(tod));
-  skyDome.material.uniforms.uSunColor.value.copy(p.sun);
-  sunLight.color.copy(p.sun);
-  sunLight.intensity = p.si;
-  fillLight.color.copy(p.fill);
-  // Hemisphere: sky colour shifts with time of day; ground bounce stays earthy
-  hemiLight.color.copy(p.top);
-  hemiLight.groundColor.lerp(new THREE.Color(0x5a8a3a), 0.5);
-  scene.fog = new THREE.FogExp2(p.fog.getHex(), 0.022);
-  fogCylMat.color.copy(p.fog);
-  markDirty();
-}
-
-function getSunDir(t) {
-  // Arc from east horizon (dawn) over south-zenith (noon) to west horizon (dusk)
-  const angle = Math.PI * t;  // 0 = east, PI/2 = overhead, PI = west
-  return new THREE.Vector3(
-    Math.cos(angle) * 0.8,    // X: east → west
-    Math.sin(angle),           // Y: horizon → sky → horizon
-    -0.5                       // Z: slight south bias
-  ).normalize();
-}
-
-function updateSunPosition(t) {
-  const dir = getSunDir(t);
-  const dist = 15;
-  sunLight.position.copy(dir).multiplyScalar(dist);
-  sunLight.target.position.set(0, 0, 0);
-  sunLight.target.updateMatrixWorld();
-  markDirty();
-}
-
-// Sky dome with sun disc in fragment shader
+// Simple gradient sky — no sun disc, matches the flat architectural lighting.
 const skyDome = new THREE.Mesh(
   new THREE.SphereGeometry(80, 32, 16),
   new THREE.ShaderMaterial({
     uniforms: {
-      uTop:      { value: new THREE.Color(0x4a90c4) },
-      uHorizon:  { value: new THREE.Color(0xd5e6d0) },
-      uSunDir:   { value: getSunDir(tod) },
-      uSunColor: { value: new THREE.Color(0xfff8e7) },
+      uTop:     { value: new THREE.Color(0xb8ccd8) },
+      uHorizon: { value: new THREE.Color(0xdde8ec) },
     },
     vertexShader: `
       varying vec3 vWorldPos;
@@ -279,22 +223,11 @@ const skyDome = new THREE.Mesh(
     fragmentShader: `
       uniform vec3 uTop;
       uniform vec3 uHorizon;
-      uniform vec3 uSunDir;
-      uniform vec3 uSunColor;
       varying vec3 vWorldPos;
       void main() {
         vec3 dir = normalize(vWorldPos);
-        // Sky gradient — horizon band extends below y=0 so fog and sky
-        // blend seamlessly; the ground edge is never visible as a hard line.
         float t = clamp((dir.y + 0.25) / 1.25, 0.0, 1.0);
-        vec3 sky = mix(uHorizon, uTop, pow(t, 0.55));
-        // Sun disc + soft halo
-        float cosA = dot(dir, normalize(uSunDir));
-        float disc  = smoothstep(0.9980, 0.9995, cosA);      // sharp disc
-        float halo  = pow(max(0.0, cosA), 18.0) * 0.35;      // wide glow
-        float glow  = pow(max(0.0, cosA), 5.0)  * 0.10;      // atmospheric scatter
-        vec3  col   = sky + uSunColor * (disc + halo + glow);
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(mix(uHorizon, uTop, pow(t, 0.6)), 1.0);
       }
     `,
     side: THREE.BackSide,
@@ -302,13 +235,10 @@ const skyDome = new THREE.Mesh(
   })
 );
 scene.add(skyDome);
-scene.fog = new THREE.FogExp2(0xd5e6d0, 0.022);
+scene.fog = new THREE.FogExp2(0xdde8ec, 0.018);
 
-// Initialise ground now that skyDome exists
+// Initialise ground
 setGroundType('grass');
-
-// Expose for UI — time-of-day slider can call this
-window.setTimeOfDay = function(t) { applyTOD(t); updateSunPosition(t); };
 
 // ─── WALL DIMENSION ARROWS ────────────────────────────────────────────────────
 const wallArrowGroup = new THREE.Group();
@@ -440,9 +370,10 @@ function _claddingKey(wallId) {
 }
 
 // Full-wall material (used for gable ends and tilt wedges — no cutouts).
-function makeWallMat(w, h, wallId) {
+// offsetY: world-space Y start position for texture continuity (e.g. on wedge above rect wall).
+function makeWallMat(w, h, wallId, offsetY = 0) {
   const cfg = CLADDING_CFG[_claddingKey(wallId)] || _CLADDING_FALLBACK;
-  return makeTiledMat({ ...cfg, worldW: w, worldH: h, tint: state.claddingTint });
+  return makeTiledMat({ ...cfg, worldW: w, worldH: h, offsetY, tint: state.claddingTint });
 }
 
 // Returns cladding config for use by makePanelMat (per-wall aware).
@@ -552,7 +483,7 @@ const WINDOW_MODEL = {
 };
 
 const DOOR_H       = 2.1;
-const TK           = 0.08;          // wall thickness
+const TK           = 0.14;          // wall thickness (140mm — typical SIP/timber-frame garden room)
 const MIN_EDGE_GAP = 0.12;          // opening to wall corner
 const MIN_BETWEEN  = 0.10;          // gap between adjacent openings
 
@@ -778,39 +709,92 @@ function getWallPanels(wallW, wallH, descriptors) {
   return panels;
 }
 
-// ─── WALL FACE BUILDER ─────────────────────────────────────────────────────────
+// ─── SIDE WALL FULL-HEIGHT POLYGON ─────────────────────────────────────────────
+// Builds a left or right wall as a single flat polygon covering the full shape
+// (trapezoid for flat/tilted roof, pentagon for apex roof). No seams, no two-piece split.
+// pts: flat [x,y,z, x,y,z, ...] for the wall outline (all share the same x).
+// worldW/worldH: used for texture tiling density.
+// Uses THREE.Shape with holes punched for each opening so windows stay see-through.
+function buildSideWallFull(wallId, pts, worldW, worldH, descriptors, hw, hd, gen) {
+  const wallX = wallId === 'left' ? -hw : hw;
 
-// Triangular wedge panel that fills the slanted top of left/right walls under tilted flat roof
-// minH = back (low) wall height, maxH = front (high) wall height
-function addSideWedge(wallId, minH, maxH, mat, hw, hd, highAtBack) {
-  const x   = wallId === 'left' ? -hw : hw;
-  const xIn = wallId === 'left' ? -hw + TK : hw - TK;
-  const yBase = 0.18 + minH;
-  const yTop  = 0.18 + maxH;
-  // highZ = z-coord of the tall end, lowZ = z-coord of the short end
-  const highZ = highAtBack ? -hd : hd;
-  const lowZ  = highAtBack ? hd : -hd;
-  const geo = new THREE.BufferGeometry();
-  const v = new Float32Array([
-    x, yBase, lowZ,     // 0 low-end bottom
-    x, yBase, highZ,    // 1 high-end bottom
-    x, yTop,  highZ,    // 2 high-end top
-    xIn, yBase, lowZ,   // 3 low-end bottom inner
-    xIn, yBase, highZ,  // 4 high-end bottom inner
-    xIn, yTop,  highZ,  // 5 high-end top inner
-  ]);
-  geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
-  geo.setIndex([
-    0,2,1,       // outer tri
-    3,4,5,       // inner tri
-    0,1,4, 0,4,3, // bottom quad
-    1,2,5, 1,5,4, // vertical face at high end
-    0,3,5, 0,5,2, // hypotenuse slant
-  ]);
-  geo.computeVertexNormals();
-  const m = new THREE.Mesh(geo, mat);
-  m.castShadow = m.receiveShadow = true;
-  buildingGroup.add(m);
+  // ── Build 2D outline in (z, y) space ──────────────────────────────────────
+  const nv = pts.length / 3;
+  const shape = new THREE.Shape();
+  shape.moveTo(pts[2], pts[1]);  // z, y of first vertex
+  for (let i = 1; i < nv; i++) shape.lineTo(pts[i * 3 + 2], pts[i * 3 + 1]);
+  shape.closePath();
+
+  // Punch holes for every opening (windows and doors)
+  descriptors.forEach(desc => {
+    const wc = localToWorld(wallId, desc.localCx, desc.localCy, hw, hd);
+    const halfW = desc.w / 2, halfH = desc.h / 2;
+    const zC = wc.z, yTop = wc.y + halfH;
+    const yBot = desc.isDoor ? 0.17 : wc.y - halfH;  // doors open to floor
+    const hole = new THREE.Path();
+    hole.moveTo(zC - halfW, yBot);
+    hole.lineTo(zC + halfW, yBot);
+    hole.lineTo(zC + halfW, yTop);
+    hole.lineTo(zC - halfW, yTop);
+    hole.closePath();
+    shape.holes.push(hole);
+  });
+
+  // ── Helper: build one face (exterior or interior) ─────────────────────────
+  function buildFace(xPos, mat) {
+    const geo = new THREE.ShapeGeometry(shape, 2);
+
+    // ShapeGeometry puts the shape in XY plane: shape-X = scene-Z, shape-Y = scene-Y.
+    // Remap each vertex so x = xPos (constant wall plane).
+    const pos = geo.attributes.position;
+    const uv  = geo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      const sz = pos.getX(i);   // shape-X holds scene-Z
+      const sy = pos.getY(i);   // shape-Y holds scene-Y
+      pos.setXYZ(i, xPos, sy, sz);
+      // Remap UVs to [0,1] across the full wall surface for consistent tiling
+      uv.setXY(i, (sz + hd) / worldW, (sy - 0.18) / worldH);
+    }
+    pos.needsUpdate = true;
+    uv.needsUpdate  = true;
+    geo.computeVertexNormals();
+
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = m.receiveShadow = true;
+    m.userData.wallId = wallId;
+    buildingGroup.add(m);
+    wallMeshes[wallId].push(m);
+  }
+
+  // Exterior cladding face (DoubleSide so it reads correctly from both angles)
+  const cfg    = makeWallTexInfo(wallId);
+  const extMat = makeTiledMat({ ...cfg, worldW, worldH, tint: state.claddingTint });
+  extMat.side  = THREE.DoubleSide;
+  buildFace(wallX, extMat);
+
+  // Interior face — inset by wall thickness, plain interior colour
+  const iwCol = INTERIOR_WALL_COLORS[state.interiorWalls] ?? 0xf5f5f5;
+  const iwMat = new THREE.MeshLambertMaterial({ color: iwCol, side: THREE.DoubleSide });
+  const inset = wallId === 'left' ? TK : -TK;
+  buildFace(wallX + inset, iwMat);
+
+  // ── Place opening models ───────────────────────────────────────────────────
+  // Offset windows/doors inward by half the wall thickness so they sit visibly
+  // set into the wall rather than flush with the exterior face.
+  const xInset = wallId === 'left' ? TK / 2 : -TK / 2;
+  descriptors.forEach(desc => {
+    const wc = localToWorld(wallId, desc.localCx, desc.localCy, hw, hd);
+    if (desc.isDoor) {
+      placeDoorGLB(wallId, wc, desc.w, desc.style, hw, hd, gen);
+    } else {
+      const pane = new THREE.Mesh(new THREE.BoxGeometry(0.015, desc.h, desc.w), glassMat);
+      pane.position.set(wc.x + xInset, wc.y, wc.z);
+      pane.userData.wallId = wallId;
+      buildingGroup.add(pane);
+      wallMeshes[wallId].push(pane);
+      placeWindowGLB(wallId, wc, desc.h, desc.w, desc.style, hw, hd, gen);
+    }
+  });
 }
 
 function buildWallFace(wallId, wallW, wallH, descriptors, hw, hd, gen) {
@@ -891,7 +875,7 @@ function placeDoorGLB(wallId, worldCentre, doorW, style, hw, hd, gen) {
   });
 }
 
-function placeWindowGLB(wallId, worldCentre, oh, ow, style, hw, hd, gen) {
+function placeWindowGLB(wallId, worldCentre, oh, _ow, style, hw, hd, gen) {
   const mk = resolveModelKey('window', style);
   const wm = WINDOW_MODEL[mk] || WINDOW_MODEL.tilt;
   loadModel(wm.file).then(model => {
@@ -902,8 +886,8 @@ function placeWindowGLB(wallId, worldCentre, oh, ow, style, hw, hd, gen) {
     switch (wallId) {
       case 'front': model.rotation.y = Math.PI;     model.position.set(x + wm.naturalW/2, yB,  hd); break;
       case 'back':  model.rotation.y = 0;           model.position.set(x - wm.naturalW/2, yB, -hd); break;
-      case 'left':  model.rotation.y = Math.PI/2;   model.position.set(-hw, yB, z + wm.naturalW/2); break;
-      case 'right': model.rotation.y = -Math.PI/2;  model.position.set( hw, yB, z - wm.naturalW/2); break;
+      case 'left':  model.rotation.y = Math.PI/2;   model.position.set(-hw + TK/2, yB, z + wm.naturalW/2); break;
+      case 'right': model.rotation.y = -Math.PI/2;  model.position.set( hw - TK/2, yB, z - wm.naturalW/2); break;
     }
     model.userData.wallId = wallId;
     buildingGroup.add(model);
@@ -930,9 +914,17 @@ function buildRoof(w, d, h, hw, hd) {
     panelM.castShadow = true;
     panelM.userData.isRoof = true;
     buildingGroup.add(panelM);
+    // Soffit — covers the underside of the roof panel so the finish texture isn't
+    // visible when looking up from outside. Sits just below the panel, same tilt.
+    const soffitM = new THREE.Mesh(new THREE.BoxGeometry(w+ov*2, 0.005, panelD), getFrameMat());
+    soffitM.position.set(0, roofY - 0.003, 0);
+    soffitM.rotation.x = -tiltRad;
+    soffitM.userData.isRoof = true;
+    buildingGroup.add(soffitM);
     // Fascia heights adjust with tilt: front is higher, back lower
     const tiltRise = Math.tan(tiltRad) * (hd + ov);
-    const fH = 0.25;
+    // fH sized to cover the roof panel edge (pT=0.1 thick): top aligns with roof top, bottom 6cm below underside.
+    const fH = 0.16;
     // Front fascia (higher side)
     const fYFront = roofY + tiltRise - fH/2 + pT;
     fa(w+ov*2+0.05, fH, 0.06, 0, fYFront, hd+ov);
@@ -988,30 +980,40 @@ function buildRoof(w, d, h, hw, hd) {
     const ridge=new THREE.Mesh(new THREE.BoxGeometry(spanW+0.1,0.10,0.10),getFrameMat());
     ridge.position.set(0,roofY+rh+pT/2,0); ridge.userData.isRoof=true; buildingGroup.add(ridge);
 
-    // ── Gable end fills: flat BufferGeometry triangles, flush with wall faces ──
-    // Span from z=-(hd+ov) to z=+(hd+ov) to cover the full overhang width
-    const gMat = makeWallMat(w, h, 'left'); // gable ends align with left/right walls
-    [-hw, hw].forEach(x => {
-      const geo = new THREE.BufferGeometry();
-      const verts = new Float32Array([
-        x, roofY,       -(hd+ov),
-        x, roofY,        (hd+ov),
-        x, roofY+rh,     0,
-      ]);
-      geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-      // Double-sided: two triangles with opposite winding
-      geo.setIndex([0,2,1, 0,1,2]);
-      geo.computeVertexNormals();
-      const g = new THREE.Mesh(geo, gMat);
-      g.castShadow = true;
-      g.userData.isRoof = true;
-      buildingGroup.add(g);
-    });
+    // Gable end fills are now handled by buildSideWallFull (pentagon polygon) in buildRoom.
 
     // ── Front & back eave fascia boards ──
-    const fH=0.20, eY=roofY;
+    // fH sized to cover the roof panel edge: top flush with roof surface, bottom ~6cm below underside.
+    const fH=0.16, eY=roofY;
     fa(spanW+0.06,fH,0.07, 0,eY-fH/2+0.02, +(hd+ov));
     fa(spanW+0.06,fH,0.07, 0,eY-fH/2+0.02, -(hd+ov));
+
+    // ── Rake boards — diagonal trim following the slope at each gable end ──
+    // (No horizontal side eave fascia on a gable roof — gable ends have only rake boards)
+    // Each rake board is a thin BoxGeometry rotated to match the pitch angle,
+    // sitting proud of the gable face, running from eave to ridge on each slope.
+    const rakeFD = 0.07;   // face depth (thickness)
+    const rakeH  = 0.14;   // cross-section height
+    // The rake runs from z=±(hd+ov) at eave height (roofY) to z=0 at ridge (roofY+rh).
+    // Length along the slope surface:
+    const rakeLen = slopeLen + 0.05;
+    // Rotation matches the roof panel angle
+    [-hw-ov, hw+ov].forEach(xPos => {
+      // Front-facing slope rake (+Z half)
+      const frRake = new THREE.Mesh(new THREE.BoxGeometry(rakeFD, rakeH, rakeLen), getFrameMat());
+      frRake.position.set(xPos, roofY + rh/2, spanZ/2);
+      frRake.rotation.x = angle;
+      frRake.castShadow = true;
+      frRake.userData.isRoof = true;
+      buildingGroup.add(frRake);
+      // Back-facing slope rake (-Z half)
+      const bkRake = new THREE.Mesh(new THREE.BoxGeometry(rakeFD, rakeH, rakeLen), getFrameMat());
+      bkRake.position.set(xPos, roofY + rh/2, -spanZ/2);
+      bkRake.rotation.x = -angle;
+      bkRake.castShadow = true;
+      bkRake.userData.isRoof = true;
+      buildingGroup.add(bkRake);
+    });
 
   }
 
@@ -1019,56 +1021,69 @@ function buildRoof(w, d, h, hw, hd) {
   buildGuttering(w, d, h, hw, hd, ov);
 }
 
-function buildGuttering(w, d, h, hw, hd, ov) {
+function buildGuttering(w, _d, h, hw, hd, ov) {
   const gutMat = new THREE.MeshLambertMaterial({ color: state.gutterColour ?? 0x1a1a1a });
-  const gutH = 0.09, gutD = 0.10, pipeR = 0.035;
 
-  // Box is long along LOCAL X (span), shallow profile in Y (height) and Z (depth).
-  // Side gutters pass rotY=PI/2 which rotates local-X → world-Z.
-  function gutter(span, cx, cy, cz, rotY) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(span, gutH, gutD), gutMat);
-    m.position.set(cx, cy, cz);
-    if (rotY) m.rotation.y = rotY;
-    m.castShadow = true;
-    buildingGroup.add(m);
+  // ── Gutter cross-section: U-channel made of 3 thin plates ───────────────────
+  const tP  = 0.013;  // plate thickness
+  const bkH = 0.085;  // back-plate height
+  const chW = 0.110;  // channel width (depth outward from wall)
+  const fpH = 0.045;  // front-lip height (lower than back = classic profile)
+
+  // ── Square-section downpipe (65 mm, standard UK) ─────────────────────────────
+  const dpS = 0.065;
+
+  const fscD = 0.07;                       // fascia depth (must match buildRoof)
+  const roofY       = 0.18 + h;
+  const eaveEdge    = hd + ov;
+  const fasciaFaceR = eaveEdge + fscD / 2; // Z of back-eave fascia outer face
+
+  // Build the U-channel along the back eave only.
+  // gutTopY = eave height where the roof slope meets the wall — gutter catches
+  // water running straight off the slope.
+  function gutterRun(gutTopY) {
+    const span  = w + ov * 2 + 0.04;
+    const faceZ = -fasciaFaceR;   // back eave is in the -Z direction
+
+    // Back plate — flat against the fascia outer face
+    const bk = new THREE.Mesh(new THREE.BoxGeometry(span, bkH, tP), gutMat);
+    bk.position.set(0, gutTopY - bkH / 2, faceZ - tP / 2);
+    bk.castShadow = true; bk.userData.isGutter = true; buildingGroup.add(bk);
+
+    // Bottom plate — horizontal, projects outward (-Z) from base of back plate
+    const bt = new THREE.Mesh(new THREE.BoxGeometry(span, tP, chW), gutMat);
+    bt.position.set(0, gutTopY - bkH - tP / 2, faceZ - tP - chW / 2);
+    bt.castShadow = true; bt.userData.isGutter = true; buildingGroup.add(bt);
+
+    // Front lip — shorter upstand at the outer edge
+    const fp = new THREE.Mesh(new THREE.BoxGeometry(span, fpH, tP), gutMat);
+    fp.position.set(0, gutTopY - bkH + fpH / 2, faceZ - tP - chW + tP / 2);
+    fp.castShadow = true; fp.userData.isGutter = true; buildingGroup.add(fp);
   }
 
-  // Downpipe from y=0 (ground) up to topY (eave)
-  function downpipe(cx, cz, topY) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(pipeR, pipeR, topY, 8), gutMat);
-    m.position.set(cx, topY / 2, cz);
-    m.castShadow = true;
-    buildingGroup.add(m);
+  // Single square-section downpipe at the right-hand back corner.
+  function downpipe(gutTopY) {
+    const dpZ = -(fasciaFaceR + dpS / 2);
+    const botY = 0.18;
+    const topY = gutTopY - bkH;
+    const dpH  = Math.max(0.05, topY - botY);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(dpS, dpH, dpS), gutMat);
+    m.position.set(hw, botY + dpH / 2, dpZ);
+    m.castShadow = true; m.userData.isGutter = true; buildingGroup.add(m);
   }
 
-  if (state.roof === 'flat') {
+  if (state.roof === 'apex') {
+    // Gutter top at eave height — water leaves the back slope and drops straight in.
+    gutterRun(roofY);
+    downpipe(roofY);
+
+  } else if (state.roof === 'flat') {
+    // Back eave is the low/drain end. Gutter top at that eave height.
     const tiltRad  = ((state.roofTilt || 0) * Math.PI) / 180;
     const tiltRise = Math.tan(tiltRad) * (hd + ov);
-    // Front is HIGH (+Z, rotation.x = -tiltRad makes +Z rise)
-    const eaveYFront = 0.18 + h + tiltRise;
-    // Back is LOW (drainage side)
-    const eaveYBack  = 0.18 + h - tiltRise;
-    const eaveYSide  = 0.18 + h; // sides are midpoint
-
-    // Front gutter (high side) — box long in X, sits just outside front fascia
-    gutter(w + ov*2, 0, eaveYFront - gutH/2, hd + ov + gutD/2);
-    // Back gutter (low/drain side)
-    gutter(w + ov*2, 0, eaveYBack  - gutH/2, -(hd + ov + gutD/2));
-    // Left & right side gutters — rotY=PI/2 makes span run in Z
-    gutter(d + ov*2, -(hw + ov + gutD/2), eaveYSide - gutH/2, 0, Math.PI/2);
-    gutter(d + ov*2,   hw + ov + gutD/2,  eaveYSide - gutH/2, 0, Math.PI/2);
-    // Downpipe at back-right corner (lowest point — drain side)
-    downpipe(hw + ov, -(hd + ov + gutD/2), eaveYBack);
-
-  } else if (state.roof === 'apex') {
-    const eaveY = 0.18 + h;
-    // Front & back eave gutters (apex pitches front/back so both are same height)
-    gutter(w + ov*2, 0, eaveY - gutH/2,   hd + ov + gutD/2);
-    gutter(w + ov*2, 0, eaveY - gutH/2, -(hd + ov + gutD/2));
-    // Downpipes at back-left and back-right corners
-    downpipe(-(hw + ov), -(hd + ov + gutD/2), eaveY);
-    downpipe(  hw + ov,  -(hd + ov + gutD/2), eaveY);
-
+    const gutTopY  = roofY - tiltRise;
+    gutterRun(gutTopY);
+    downpipe(gutTopY);
   }
 }
 
@@ -1080,8 +1095,8 @@ function buildRoom() {
   while (buildingGroup.children.length) buildingGroup.remove(buildingGroup.children[0]);
   // Clear wall mesh registry so interior-view opacity is applied to fresh meshes.
   Object.keys(wallMeshes).forEach(k => { wallMeshes[k] = []; });
+  cornerPostMeshes.length = 0;
   const w=state.width, d=state.depth, h=state.height, hw=w/2, hd=d/2;
-  const wallTexInfo = null; // computed per-wall inside buildWallFace
 
   // Tighten shadow camera to the actual building footprint + small margin so the
   // full 2048px shadow map is concentrated on the building rather than empty ground.
@@ -1106,10 +1121,6 @@ function buildRoom() {
   const intFloorMat = new THREE.MeshStandardMaterial({ color: intFloorCol, roughness: floorRoughMap[state.interiorFloor] ?? 0.70, metalness: 0.0 });
   box(w-0.02, 0.005, d-0.02, 0, 0.185, 0, intFloorMat);
 
-  // Interior wall surfaces (thin inner faces)
-  const intWallCol = INTERIOR_WALL_COLORS[state.interiorWalls] ?? 0xf5f5f5;
-  const intWallMat = new THREE.MeshStandardMaterial({ color: intWallCol, roughness: 0.88, metalness: 0.0, side: THREE.FrontSide });
-
   const wallOps = { front:[], back:[], left:[], right:[] };
   state.openings.forEach(op => wallOps[op.wall].push(opToDescriptor(op)));
 
@@ -1124,20 +1135,50 @@ function buildRoom() {
 
   buildWallFace('front', w, frontH, wallOps.front, hw, hd, gen);
   buildWallFace('back',  w, backH,  wallOps.back,  hw, hd, gen);
-  // Side walls: rectangle up to shorter height, plus triangle wedge on top if needed
-  const sideBaseH = Math.min(frontH, backH);
-  buildWallFace('left',  d, sideBaseH, wallOps.left,  hw, hd, gen);
-  buildWallFace('right', d, sideBaseH, wallOps.right, hw, hd, gen);
-  if (Math.abs(frontH - backH) > 0.005) {
-    const highAtBack = backH > frontH;
-    const wedgeH = Math.max(frontH, backH) - sideBaseH;
-    addSideWedge('left',  sideBaseH, Math.max(frontH, backH), makeWallMat(d, wedgeH, 'left'),  hw, hd, highAtBack);
-    addSideWedge('right', sideBaseH, Math.max(frontH, backH), makeWallMat(d, wedgeH, 'right'), hw, hd, highAtBack);
-  }
+
+  // ── Side walls: single full-height polygon per side ──────────────────────────
+  // For flat/tilted roof: trapezoid (slanted top edge matching tilt).
+  // For apex roof: pentagon (rectangle + triangle to the ridge).
+  // Vertices ordered CCW when viewed from outside (right-hand rule gives correct normal).
+  // UV: U=0 at z=-hd (back), U=1 at z=+hd (front); V=1 at bottom, V=0 at top.
+  ['left', 'right'].forEach(wallId => {
+    const x = wallId === 'left' ? -hw : hw;
+    if (state.roof === 'apex') {
+      const rh = state.apexPitch ?? 1.0;
+      const totalH = h + rh;
+      // Pentagon: bottom-back → bottom-front → shoulder-front → apex → shoulder-back
+      // CCW from outside for right wall; left wall is mirrored so same order works with DoubleSide
+      const pts = [
+        x, 0.18,         -hd,   // 0  bottom back
+        x, 0.18,          hd,   // 1  bottom front
+        x, 0.18 + h,      hd,   // 2  shoulder front
+        x, 0.18 + totalH, 0,    // 3  apex
+        x, 0.18 + h,     -hd,   // 4  shoulder back
+      ];
+      buildSideWallFull(wallId, pts, d, totalH, wallOps[wallId], hw, hd, gen);
+    } else {
+      // Flat / tilted roof: trapezoid
+      const fH = frontH, bH = backH, maxH = Math.max(fH, bH);
+      const pts = [
+        x, 0.18,        -hd,   // 0  bottom back
+        x, 0.18,         hd,   // 1  bottom front
+        x, 0.18 + fH,    hd,   // 2  top front
+        x, 0.18 + bH,   -hd,   // 3  top back
+      ];
+      buildSideWallFull(wallId, pts, d, maxH, wallOps[wallId], hw, hd, gen);
+    }
+  });
 
   // Corner posts — variable height per corner
-  [[-hw,-hd,backH],[hw,-hd,backH],[-hw,hd,frontH],[hw,hd,frontH]]
-    .forEach(([x,z,ph])=>box(0.1, ph, 0.1, x, 0.18+ph/2, z, getFrameMat()));
+  [
+    { x: -hw, z: -hd, ph: backH,  walls: ['left',  'back']  },
+    { x:  hw, z: -hd, ph: backH,  walls: ['right', 'back']  },
+    { x: -hw, z:  hd, ph: frontH, walls: ['left',  'front'] },
+    { x:  hw, z:  hd, ph: frontH, walls: ['right', 'front'] },
+  ].forEach(({ x, z, ph, walls }) => {
+    const m = box(0.1, ph, 0.1, x, 0.18 + ph / 2, z, getFrameMat());
+    if (m) { m.userData.isCornerPost = walls; cornerPostMeshes.push({ mesh: m, walls }); }
+  });
 
   buildRoof(w,d,h,hw,hd);
 
@@ -1207,8 +1248,8 @@ function buildRoom() {
     }
   }
 
-  // Veranda / canopy
-  if (state.veranda && state.veranda.enabled) {
+  // Veranda / canopy — enabled when veranda qty > 0
+  if ((state.roofPorchItems?.veranda ?? 0) > 0) {
     const vd = state.veranda.depth ?? 2.0;
     const verandaH = Math.min(frontH, backH);
     const vRoofY = 0.18 + verandaH - 0.05; // slightly below eave
@@ -1239,6 +1280,7 @@ function buildRoom() {
 
   rebuildHandles();
   rebuildWallArrows();
+  rebuildEdgeHandles();
   if (interiorViewMode) applyInteriorView();
   if (floorplanViewMode) {
     buildingGroup.traverse(child => {
@@ -1268,7 +1310,7 @@ function toggleInteriorView() {
 
 function applyInteriorView() {
   buildingGroup.traverse(child => {
-    if (child.isMesh && child.userData.isRoof) child.visible = false;
+    if (child.isMesh && (child.userData.isRoof || child.userData.isGutter)) child.visible = false;
   });
   // Wider FOV feels more natural inside a room — avoids the compressed
   // telephoto look and makes the space feel correctly proportioned.
@@ -1279,11 +1321,23 @@ function applyInteriorView() {
 }
 
 function restoreExteriorView() {
+  // Reset cache so next interior view entry re-applies all ghost states cleanly
+  for (const k of Object.keys(_prevGhosted)) _prevGhosted[k] = null;
   buildingGroup.traverse(child => {
-    if (child.isMesh && child.userData.isRoof) child.visible = true;
+    if (child.isMesh && (child.userData.isRoof || child.userData.isGutter)) child.visible = true;
   });
   for (const meshes of Object.values(wallMeshes)) {
-    for (const m of meshes) m.visible = true;
+    for (const m of meshes) {
+      if (!m.isMesh || !m.material) continue;
+      m.material.transparent = false;
+      m.material.opacity = 1.0;
+      m.material.needsUpdate = true;
+    }
+  }
+  for (const { mesh } of cornerPostMeshes) {
+    mesh.material.transparent = false;
+    mesh.material.opacity = 1.0;
+    mesh.material.needsUpdate = true;
   }
   // Restore the default telephoto FOV used for exterior presentation.
   camera.fov = 20;
@@ -1294,27 +1348,63 @@ function restoreExteriorView() {
 // Called every render frame while in interior view.
 // Walls whose outward normal points toward the camera are hidden (cutaway);
 // walls facing away remain visible so the room structure is clear.
+const GHOST_OPACITY = 0.12;
+// Cache last ghosted state so we only touch materials when something changes,
+// preventing needsUpdate from triggering shader recompilation every frame.
+const _prevGhosted = { front: null, back: null, left: null, right: null };
+
+function _applyGhost(mat, g) {
+  if (!mat) return;
+  mat.transparent = g;
+  mat.opacity = g ? GHOST_OPACITY : 1.0;
+  mat.needsUpdate = true;
+}
+
 function updateWallVisibility() {
   const hw = state.width / 2;
   const hd = state.depth / 2;
-  // Wall plane offsets along their outward normals (world-space position of each wall face)
   const WALL_OFFSETS = {
-    front:  new THREE.Vector3(0,  0,  hd),
-    back:   new THREE.Vector3(0,  0, -hd),
-    left:   new THREE.Vector3(-hw, 0, 0),
-    right:  new THREE.Vector3(hw,  0, 0),
+    front:  new THREE.Vector3(0,   0,  hd),
+    back:   new THREE.Vector3(0,   0, -hd),
+    left:   new THREE.Vector3(-hw, 0,  0),
+    right:  new THREE.Vector3(hw,  0,  0),
   };
-  for (const [wallId, meshes] of Object.entries(wallMeshes)) {
-    // Camera is on the outward side of a wall when:
-    // normal · (cameraPos - wallPos) > 0
-    const wallPos = WALL_OFFSETS[wallId];
-    const camRelative = camera.position.clone().sub(wallPos);
-    const facingCamera = WALL_NORMALS[wallId].dot(camRelative) > 0;
-    for (const m of meshes) m.visible = !facingCamera;
+
+  // Determine which walls face the camera (should be ghosted)
+  const ghosted = {};
+  for (const wallId of Object.keys(WALL_OFFSETS)) {
+    const camRelative = camera.position.clone().sub(WALL_OFFSETS[wallId]);
+    ghosted[wallId] = WALL_NORMALS[wallId].dot(camRelative) > 0;
   }
+
+  // Detect which walls changed, update wall meshes, then commit state
+  const changed = {};
+  for (const wallId of Object.keys(ghosted)) {
+    changed[wallId] = ghosted[wallId] !== _prevGhosted[wallId];
+  }
+
+  for (const [wallId, meshes] of Object.entries(wallMeshes)) {
+    if (!changed[wallId]) continue;
+    for (const m of meshes) {
+      if (m.isMesh) {
+        _applyGhost(m.material, ghosted[wallId]);
+      }
+      // GLB groups (doors/windows) are intentionally left opaque
+    }
+  }
+
+  // Corner posts — ghost when either adjacent wall is ghosted
+  for (const { mesh, walls } of cornerPostMeshes) {
+    if (!walls.some(w => changed[w])) continue;
+    _applyGhost(mesh.material, walls.some(w => ghosted[w]));
+  }
+
+  for (const wallId of Object.keys(ghosted)) _prevGhosted[wallId] = ghosted[wallId];
 }
 
 // ─── HANDLES ───────────────────────────────────────────────────────────────────
+
+const HANDLE_PROXIMITY = 90;  // px proximity threshold for handle fade-in
 
 function rebuildHandles() {
   while (handlesGroup.children.length) handlesGroup.remove(handlesGroup.children[0]);
@@ -1323,22 +1413,49 @@ function rebuildHandles() {
     const desc = opToDescriptor(op);
     const wc   = localToWorld(op.wall, desc.localCx, desc.localCy, hw, hd);
     const color = op.type==='door' ? HANDLE_DOOR_COLOR : HANDLE_WIN_COLOR;
-    const disc = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.22, 0.22, 0.05, 20),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
-    );
-    disc.userData = { openingId: op.id, baseColor: color };
-    const proud=0.09;
-    disc.position.set(wc.x, wc.y, wc.z);
+    const mat = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0, depthTest: false, side: THREE.DoubleSide
+    });
+    // Rectangular face matching the opening dimensions
+    const geo = op.wall === 'left' || op.wall === 'right'
+      ? (() => { const g = new THREE.PlaneGeometry(desc.h, desc.w); g.rotateZ(Math.PI/2); g.rotateY(Math.PI/2); return g; })()
+      : new THREE.PlaneGeometry(desc.w, desc.h);
+    const handle = new THREE.Mesh(geo, mat);
+    handle.userData = { openingId: op.id, baseColor: color };
+    const proud = 0.06;
+    handle.position.set(wc.x, wc.y, wc.z);
     switch(op.wall){
-      case 'front': disc.rotation.x=Math.PI/2; disc.position.z+=proud; break;
-      case 'back':  disc.rotation.x=Math.PI/2; disc.position.z-=proud; break;
-      case 'left':  disc.rotation.z=Math.PI/2; disc.position.x-=proud; break;
-      case 'right': disc.rotation.z=Math.PI/2; disc.position.x+=proud; break;
+      case 'front': handle.position.z += proud; break;
+      case 'back':  handle.position.z -= proud; break;
+      case 'left':  handle.position.x -= proud; break;
+      case 'right': handle.position.x += proud; break;
     }
-    handlesGroup.add(disc);
+    handlesGroup.add(handle);
   });
   refreshHandleColors();
+}
+
+function updateHandleVisibility(mouseX, mouseY) {
+  const vp = document.querySelector('.viewport');
+  if (!vp) return;
+  const vr = vp.getBoundingClientRect();
+  handlesGroup.children.forEach(handle => {
+    const id = handle.userData.openingId;
+    const op = state.openings.find(o => o.id === id);
+    // Never show handles on walls the camera can't see
+    if (op && !wallFacesCamera(op.wall)) { handle.material.opacity = 0; return; }
+    if (id === selectedHandleId) { handle.material.opacity = 0.55; markDirty(); return; }
+    const v = handle.position.clone().project(camera);
+    if (v.z >= 1) { handle.material.opacity = 0; return; }
+    const sx = (v.x * 0.5 + 0.5) * vr.width;
+    const sy = (-v.y * 0.5 + 0.5) * vr.height;
+    const ddx = mouseX - vr.left - sx;
+    const ddy = mouseY - vr.top  - sy;
+    const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+    const target = dist < HANDLE_PROXIMITY ? Math.max(0.08, 0.55 * (1 - dist / HANDLE_PROXIMITY)) : 0;
+    handle.material.opacity += (target - handle.material.opacity) * 0.25;
+    if (Math.abs(target - handle.material.opacity) > 0.005) markDirty();
+  });
 }
 
 // ─── WALL DIMENSION ARROWS (architectural style) ──────────────────────────────
@@ -1347,7 +1464,7 @@ function ensureWallLabels() {
   if (wallLabels.width) return;
   const vp = document.querySelector('.viewport');
   if (!vp) return;
-  ['width','depth','height'].forEach(dim => {
+  ['width','depth'].forEach(dim => {
     const d = document.createElement('div');
     d.style.cssText = [
       'position:absolute', 'pointer-events:none',
@@ -1368,100 +1485,65 @@ function ensureWallLabels() {
   });
 }
 
-// ── DIMENSION ARROW HELPERS ───────────────────────────────────────────────────
+// ── GROUND DIMENSION INDICATORS ──────────────────────────────────────────────
+// Flat 2D arrows painted on the ground plane. Cosmetic only — no interaction.
 
 const DIM_MAT = new THREE.MeshBasicMaterial({
-  color: 0x333333, transparent: true, opacity: 0.88,
-  side: THREE.DoubleSide, depthTest: false,
+  color: 0x1565c0, transparent: true, opacity: 0.82,
+  side: THREE.DoubleSide, depthTest: true,
 });
 
-// Thin flat strip lying in the XZ plane, centred at origin, pointing along +X
-function dimLine(length) {
-  const g = new THREE.PlaneGeometry(length, 0.018);
-  g.rotateX(-Math.PI / 2);
-  return new THREE.Mesh(g, DIM_MAT);
-}
-
-// Small filled dot (disc) lying in XZ plane
-function dimDot(r) {
-  const g = new THREE.CircleGeometry(r, 14);
-  g.rotateX(-Math.PI / 2);
-  return new THREE.Mesh(g, DIM_MAT);
-}
-
-// Short perpendicular tick mark at end of a horizontal dim line (in XZ plane)
-function dimTickH() {
-  const g = new THREE.PlaneGeometry(0.018, 0.32);
-  g.rotateX(-Math.PI / 2); g.rotateY(Math.PI / 2);
-  return new THREE.Mesh(g, DIM_MAT);
-}
-
-// Short perpendicular tick mark at end of a vertical dim line (in XY plane)
-function dimTickV() {
-  const g = new THREE.PlaneGeometry(0.32, 0.018);
-  return new THREE.Mesh(g, DIM_MAT);
-}
-
-// Extension line: short perpendicular stub from wall corner to dim line
-function dimExtH(extLen) {
-  const g = new THREE.PlaneGeometry(0.018, extLen);
-  g.rotateX(-Math.PI / 2); g.rotateY(Math.PI / 2);
-  return new THREE.Mesh(g, DIM_MAT);
-}
-
 /**
- * Full horizontal dimension indicator, spans `length` along +X,
- * at y=y0, offset from wall by `offZ` in local Z.
- * wallGap = distance from wall surface to the extension line start.
+ * Build a flat ground-plane dimension indicator for a span of `length` metres.
+ * The indicator sits along the local +X axis, centred at the origin, at Y = yGnd.
+ * It consists of:
+ *   • A thin centre line the full span
+ *   • Two filled arrowheads pointing inward at each end
+ *   • Two short perpendicular end-caps
  */
-function makeDimGroupH(length, wallGap, extLen) {
+function makeDimIndicator(length) {
   const g = new THREE.Group();
-  const half = length / 2;
+  const half  = length / 2;
+  const lineW = 0.04;       // line thickness
+  const capH  = 0.35;       // end-cap perpendicular height
+  const arrowL = 0.45;      // arrowhead length (along main axis)
+  const arrowW = 0.22;      // arrowhead width (perpendicular)
+  const yGnd  = 0.012;      // just above the grass glow (y=0.003)
 
-  // Main dimension line
-  const l = dimLine(length); g.add(l);
+  // ── Centre line (minus arrowhead zones) ──
+  const innerLen = Math.max(0.01, length - arrowL * 2);
+  const lineGeo = new THREE.PlaneGeometry(innerLen, lineW);
+  lineGeo.rotateX(-Math.PI / 2);
+  const line = new THREE.Mesh(lineGeo, DIM_MAT);
+  line.position.y = yGnd;
+  g.add(line);
 
-  // Tick marks at each end
-  [-half, half].forEach(x => {
-    const t = dimTickH(); t.position.x = x; g.add(t);
+  // ── Arrowheads — filled triangles pointing inward ──
+  // Left arrowhead points in +X direction (toward centre), right points in -X
+  [{ side: -1, dir: 1 }, { side: 1, dir: -1 }].forEach(({ side, dir }) => {
+    const tip   = side * half;                   // tip of arrow (at wall end)
+    const base  = tip + dir * arrowL;            // base of arrow (toward centre)
+    const verts = new Float32Array([
+      tip,  yGnd,  0,                            // tip
+      base, yGnd, -arrowW / 2,                   // base left
+      base, yGnd,  arrowW / 2,                   // base right
+    ]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    // One triangle: winding such that normal = +Y (visible from above)
+    geo.setIndex(side < 0 ? [0, 2, 1] : [0, 1, 2]);
+    geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, DIM_MAT));
   });
 
-  // Extension lines at both ends (in local Z, from wall edge out to dim line)
+  // ── End caps (perpendicular ticks at each wall) ──
   [-half, half].forEach(x => {
-    const ext = dimExtH(extLen);
-    ext.position.x = x;
-    ext.position.z = -(wallGap + extLen / 2);
-    g.add(ext);
+    const capGeo = new THREE.PlaneGeometry(lineW, capH);
+    capGeo.rotateX(-Math.PI / 2);
+    const cap = new THREE.Mesh(capGeo, DIM_MAT);
+    cap.position.set(x, yGnd, 0);
+    g.add(cap);
   });
-
-  // Wide invisible hit plane
-  const hitG = new THREE.PlaneGeometry(length + 1.0, 0.7);
-  hitG.rotateX(-Math.PI / 2);
-  const hitM = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
-  const hit = new THREE.Mesh(hitG, hitM); hit.userData.isHitBox = true; g.add(hit);
-
-  return g;
-}
-
-/**
- * Full vertical dimension indicator, spans `length` along +Y,
- * centred at origin.
- */
-function makeDimGroupV(length) {
-  const g = new THREE.Group();
-  const half = length / 2;
-
-  // Main line
-  const lineG = new THREE.PlaneGeometry(0.018, length);
-  const line = new THREE.Mesh(lineG, DIM_MAT); g.add(line);
-
-  // Tick marks at top and bottom
-  [half, -half].forEach(y => { const t = dimTickV(); t.position.y = y; g.add(t); });
-
-  // Hit plane facing Z
-  const hitG = new THREE.PlaneGeometry(0.7, length + 1.0);
-  const hitM = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
-  const hit = new THREE.Mesh(hitG, hitM); hit.userData.isHitBox = true; g.add(hit);
 
   return g;
 }
@@ -1470,46 +1552,100 @@ function rebuildWallArrows() {
   while (wallArrowGroup.children.length) wallArrowGroup.remove(wallArrowGroup.children[0]);
   ensureWallLabels();
   const hw = state.width / 2, hd = state.depth / 2;
-  const y0 = 0.12;
-  const dimOff = 0.9;   // distance from wall face to dim line
-  const extLen = 0.7;   // length of extension stubs
+  const off = 1.1;   // distance from wall face to indicator centre line
 
-  // ── Width: spans along X, positioned in front (+Z side) ──
-  const wArr = makeDimGroupH(state.width, dimOff, extLen);
-  wArr.position.set(0, y0, hd + dimOff);
-  wArr.userData = { isWallArrow: true, dimension: 'width' };
-  wallArrowGroup.add(wArr);
+  // ── Width indicators — front (+Z) and back (-Z) ──
+  const wFront = makeDimIndicator(state.width);
+  wFront.position.set(0, 0, hd + off);
+  wallArrowGroup.add(wFront);
 
-  // ── Depth: spans along Z (via Y rotation), positioned on right (+X side) ──
-  const dArr = makeDimGroupH(state.depth, dimOff, extLen);
-  dArr.rotation.y = Math.PI / 2;
-  dArr.position.set(hw + dimOff, y0, 0);
-  dArr.userData = { isWallArrow: true, dimension: 'depth' };
-  wallArrowGroup.add(dArr);
+  const wBack = makeDimIndicator(state.width);
+  wBack.position.set(0, 0, -(hd + off));
+  wallArrowGroup.add(wBack);
 
-  // ── Height: vertical, at front-right corner ──
-  const hArr = makeDimGroupV(state.height);
-  hArr.position.set(hw + 1.1, 0.18 + state.height / 2, hd + 0.3);
-  hArr.userData = { isWallArrow: true, dimension: 'height' };
-  wallArrowGroup.add(hArr);
+  // ── Depth indicators — right (+X) and left (-X) ──
+  const dRight = makeDimIndicator(state.depth);
+  dRight.rotation.y = Math.PI / 2;
+  dRight.position.set(hw + off, 0, 0);
+  wallArrowGroup.add(dRight);
+
+  const dLeft = makeDimIndicator(state.depth);
+  dLeft.rotation.y = Math.PI / 2;
+  dLeft.position.set(-(hw + off), 0, 0);
+  wallArrowGroup.add(dLeft);
 }
 
-function raycastWallArrows(e) {
+// ── EDGE DRAG HANDLES (blue spheres) ─────────────────────────────────────────
+// One sphere per wall face, sitting just outside the building at mid-wall height.
+// They are invisible until the cursor is within EDGE_HANDLE_RADIUS screen pixels,
+// then fade in. Dragging one adjusts the corresponding dimension.
+
+const EDGE_HANDLE_RADIUS = 80;   // px proximity threshold for fade-in
+const EDGE_HANDLE_MAT = new THREE.MeshStandardMaterial({
+  color: 0x1565c0, roughness: 0.3, metalness: 0.1,
+  transparent: true, opacity: 0,
+});
+
+// Each entry: { wall, mesh, worldPos() }
+const edgeHandles = [];
+
+function rebuildEdgeHandles() {
+  while (edgeHandleGroup.children.length) edgeHandleGroup.remove(edgeHandleGroup.children[0]);
+  edgeHandles.length = 0;
+  const hw = state.width / 2, hd = state.depth / 2;
+  const sphY = 0.55;   // near-ground height — doesn't float at mid-wall
+  const proud = 0.35;   // how far outside the wall face the sphere sits
+
+  const defs = [
+    { wall: 'front', pos: new THREE.Vector3(0,       sphY,  hd + proud) },
+    { wall: 'back',  pos: new THREE.Vector3(0,       sphY, -hd - proud) },
+    { wall: 'right', pos: new THREE.Vector3( hw + proud, sphY, 0) },
+    { wall: 'left',  pos: new THREE.Vector3(-hw - proud, sphY, 0) },
+  ];
+
+  defs.forEach(({ wall, pos }) => {
+    // Each sphere gets its own material instance so opacity can be set individually
+    const mat = EDGE_HANDLE_MAT.clone();
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 12), mat);
+    mesh.position.copy(pos);
+    mesh.userData.edgeWall = wall;
+    edgeHandleGroup.add(mesh);
+    edgeHandles.push({ wall, mesh });
+  });
+}
+
+function updateEdgeHandleVisibility(mouseX, mouseY) {
+  const vp = document.querySelector('.viewport');
+  if (!vp) return;
+  const vr = vp.getBoundingClientRect();
+  edgeHandles.forEach(({ mesh }) => {
+    const v = mesh.position.clone().project(camera);
+    if (v.z >= 1) { mesh.material.opacity = 0; return; }
+    const sx = (v.x * 0.5 + 0.5) * vr.width;
+    const sy = (-v.y * 0.5 + 0.5) * vr.height;
+    const dx = mouseX - vr.left - sx;
+    const dy = mouseY - vr.top  - sy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const target = dist < EDGE_HANDLE_RADIUS ? Math.max(0.15, 1 - dist / EDGE_HANDLE_RADIUS) : 0;
+    mesh.material.opacity += (target - mesh.material.opacity) * 0.25;
+    markDirty();
+  });
+}
+
+function raycastEdgeHandle(e) {
   raycaster.setFromCamera(getMouseNDC(e), camera);
-  // Deep=true to hit hit-box meshes inside groups
-  const hits = raycaster.intersectObjects(wallArrowGroup.children, true);
+  const hits = raycaster.intersectObjects(edgeHandleGroup.children, false);
   if (!hits.length) return null;
-  // Walk up to find the group with isWallArrow
-  let obj = hits[0].object;
-  while (obj && !obj.userData.isWallArrow) obj = obj.parent;
-  return (obj && obj.userData.isWallArrow) ? obj : null;
+  return hits[0].object;
 }
 
+const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _groundTarget = new THREE.Vector3();
 function raycastGround(e) {
   raycaster.setFromCamera(getMouseNDC(e), camera);
-  const plane = new THREE.Plane(new THREE.Vector3(0,1,0), -0.22);
-  const target = new THREE.Vector3();
-  return raycaster.ray.intersectPlane(plane, target) ? target : null;
+  return raycaster.ray.intersectPlane(_groundPlane, _groundTarget)
+    ? _groundTarget.clone()
+    : null;
 }
 
 function updateWallLabels() {
@@ -1519,9 +1655,8 @@ function updateWallLabels() {
   const vr = vp.getBoundingClientRect();
   const hw=state.width/2, hd=state.depth/2;
   const labelData = [
-    { key:'width',  pos: new THREE.Vector3(0,       0.55, hd+1.7),                  text: state.width.toFixed(1)+'m'  },
-    { key:'depth',  pos: new THREE.Vector3(hw+1.7,  0.55, 0),                       text: state.depth.toFixed(1)+'m'  },
-    { key:'height', pos: new THREE.Vector3(hw+1.1,  0.22+state.height*0.5, hd+0.9), text: state.height.toFixed(1)+'m' },
+    { key:'width', pos: new THREE.Vector3(0,      0.55, hd+1.7), text: state.width.toFixed(1)+'m' },
+    { key:'depth', pos: new THREE.Vector3(hw+1.7, 0.55, 0),      text: state.depth.toFixed(1)+'m' },
   ];
   labelData.forEach(({ key, pos, text }) => {
     const div = wallLabels[key];
@@ -1544,13 +1679,24 @@ function getMouseNDC(e) {
   return new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1, ((e.clientY-r.top)/r.height)*-2+1);
 }
 
+function wallFacesCamera(wallId) {
+  const hw = state.width / 2, hd = state.depth / 2;
+  const WALL_OFFSETS = { front: new THREE.Vector3(0,0,hd), back: new THREE.Vector3(0,0,-hd),
+                         left: new THREE.Vector3(-hw,0,0), right: new THREE.Vector3(hw,0,0) };
+  return WALL_NORMALS[wallId].dot(camera.position.clone().sub(WALL_OFFSETS[wallId])) > 0;
+}
+
 function raycastHandles(e) {
   raycaster.setFromCamera(getMouseNDC(e), camera);
   const hits = raycaster.intersectObjects(handlesGroup.children, true);
   if (!hits.length) return null;
   let obj=hits[0].object;
   while(obj && !obj.userData.openingId) obj=obj.parent;
-  return obj ? { openingId: obj.userData.openingId, handleMesh: obj } : null;
+  if (!obj) return null;
+  // Reject handles on walls that aren't facing the camera — prevents clicking through walls
+  const op = state.openings.find(o => o.id === obj.userData.openingId);
+  if (op && !wallFacesCamera(op.wall)) return null;
+  return { openingId: obj.userData.openingId, handleMesh: obj };
 }
 
 function raycastWall(e) {
@@ -1587,15 +1733,13 @@ let hoveredHandleId   = null;
 let selectedHandleId  = null;
 
 function refreshHandleColors() {
-  handlesGroup.children.forEach(disc => {
-    const id=disc.userData.openingId;
-    let color=disc.userData.baseColor;
-    if(id===selectedHandleId) color=HANDLE_SEL_COLOR;
+  handlesGroup.children.forEach(handle => {
+    const id=handle.userData.openingId;
+    let color=handle.userData.baseColor;
+    if(id===selectedHandleId) { color=HANDLE_SEL_COLOR; handle.material.opacity=0.55; }
     else if(id===hoveredHandleId) color=HANDLE_HOVER_COLOR;
-    disc.material.color.setHex(color);
-    // Scale up slightly on select/hover for visual feedback
-    const s = (id===selectedHandleId||id===hoveredHandleId) ? 1.18 : 1.0;
-    disc.scale.setScalar(s);
+    handle.material.color.setHex(color);
+    handle.material.needsUpdate = true;
   });
 }
 
@@ -1683,8 +1827,8 @@ function showPlacementError(msg) {
 // ─── MOUSE EVENTS ──────────────────────────────────────────────────────────────
 
 let orbitActive=false, panActive=false, prevMouseX=0, prevMouseY=0;
-let wallArrowDragState = null;
-let wallArrowHover = null;
+let rightDragged = false;  // true if right-click turned into a pan drag (suppresses delete-on-right-click)
+let edgeDragState = null;  // { wall, axis ('x'|'z'), sign (1|-1) } while dragging an edge handle
 
 // ── Camera state: current values (what's rendered) and target values (where we're going)
 let orbitTheta=0.343, orbitPhi=1.350, orbitRadius=22.11;
@@ -1734,12 +1878,16 @@ function tickCamera() {
 canvas.addEventListener('mousedown', e => {
   e.preventDefault();
 
-  // 0. Wall dimension arrow → resize drag
-  const rHit = raycastWallArrows(e);
-  if (rHit) {
-    wallArrowDragState = { dimension: rHit.userData.dimension, lastX: e.clientX, lastY: e.clientY };
-    const dim = rHit.userData.dimension;
-    canvas.style.cursor = dim === 'height' ? 'ns-resize' : 'ew-resize';
+  // 0. Edge sphere handle → wall resize drag
+  const eHit = raycastEdgeHandle(e);
+  if (eHit && eHit.material.opacity > 0.05) {
+    const wall = eHit.userData.edgeWall;
+    const axis = (wall === 'front' || wall === 'back') ? 'z' : 'x';
+    const sign = (wall === 'front' || wall === 'right') ? 1 : -1;
+    const gp = raycastGround(e);
+    edgeDragState = { wall, axis, sign, groundAnchor: gp };
+    canvas.style.cursor = 'grab';
+    eHit.material.opacity = 1;
     return;
   }
 
@@ -1762,9 +1910,9 @@ canvas.addEventListener('mousedown', e => {
     return;
   }
 
-  // 3. Shift+drag → pan camera
-  if (e.shiftKey) {
-    panActive = true; prevMouseX = e.clientX; prevMouseY = e.clientY;
+  // 3. Right-click or Shift+drag → pan camera
+  if (e.button === 2 || e.shiftKey) {
+    panActive = true; rightDragged = false; prevMouseX = e.clientX; prevMouseY = e.clientY;
     canvas.style.cursor = 'move';
     return;
   }
@@ -1776,8 +1924,8 @@ canvas.addEventListener('mousedown', e => {
   orbitActive=true; prevMouseX=e.clientX; prevMouseY=e.clientY;
 });
 
-canvas.addEventListener('dblclick', e => {
-  if (!dragState && !wallArrowDragState) {
+canvas.addEventListener('dblclick', () => {
+  if (!dragState) {
     targetOrigin.set(0, 1.5, 0);
     targetTheta = 0.343; targetPhi = 1.350; targetRadius = 22.11;
     markDirty();
@@ -1787,9 +1935,9 @@ canvas.addEventListener('dblclick', e => {
 window.addEventListener('mouseup', () => {
   orbitActive = false;
   panActive = false;
-  if (wallArrowDragState) {
-    wallArrowDragState = null;
-    canvas.style.cursor = activePaletteType ? 'crosshair' : (hoveredHandleId ? 'grab' : 'default');
+  if (edgeDragState) {
+    edgeDragState = null;
+    canvas.style.cursor = 'default';
     if (typeof stateHistory !== 'undefined') stateHistory.push();
   }
   if (dragState) {
@@ -1800,23 +1948,24 @@ window.addEventListener('mouseup', () => {
 });
 
 window.addEventListener('mousemove', e => {
-  // Wall dimension arrow drag
-  if (wallArrowDragState) {
-    const { dimension } = wallArrowDragState;
-    if (dimension === 'width') {
-      const g = raycastGround(e);
-      if (g) state.width = Math.round(Math.max(2, Math.min(10, Math.abs(g.x)*2)) * 4) / 4;
-    } else if (dimension === 'depth') {
-      const g = raycastGround(e);
-      if (g) state.depth = Math.round(Math.max(2, Math.min(8, Math.abs(g.z)*2)) * 4) / 4;
-    } else {
-      const dy = e.clientY - wallArrowDragState.lastY;
-      wallArrowDragState.lastY = e.clientY;
-      state.height = Math.round(Math.max(2.2, Math.min(3.5, state.height - dy*0.008)) * 10) / 10;
+  // Edge handle drag → resize wall
+  if (edgeDragState) {
+    const { axis, sign, groundAnchor } = edgeDragState;
+    const gp = raycastGround(e);
+    if (gp && groundAnchor) {
+      // World-space delta along the relevant axis — fully camera-independent
+      if (axis === 'z') {
+        const delta = gp.z - groundAnchor.z;
+        state.depth = Math.round(Math.max(2, Math.min(8, state.depth + delta * sign * 2)) * 4) / 4;
+      } else {
+        const delta = gp.x - groundAnchor.x;
+        state.width = Math.round(Math.max(2, Math.min(10, state.width + delta * sign * 2)) * 4) / 4;
+      }
+      edgeDragState.groundAnchor = gp;  // advance anchor each frame
+      buildRoom();
+      if (typeof updatePriceDisplay === 'function') updatePriceDisplay();
+      if (typeof syncDimSliders === 'function') syncDimSliders();
     }
-    buildRoom();
-    if (typeof updatePriceDisplay === 'function') updatePriceDisplay();
-    if (typeof syncDimSliders === 'function') syncDimSliders();
     return;
   }
 
@@ -1825,6 +1974,7 @@ window.addEventListener('mousemove', e => {
     const dx = e.clientX - prevMouseX;
     const dy = e.clientY - prevMouseY;
     prevMouseX = e.clientX; prevMouseY = e.clientY;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) rightDragged = true;
     const right = new THREE.Vector3();
     const camDir = new THREE.Vector3();
     camera.getWorldDirection(camDir);
@@ -1863,56 +2013,25 @@ window.addEventListener('mousemove', e => {
     markDirty(); return;
   }
 
-  // Wall arrow hover
-  if (!activePaletteType && !dragState && !wallArrowDragState) {
-    const rh = raycastWallArrows(e);
-    if (rh !== wallArrowHover) {
-      if (wallArrowHover) wallArrowHover.material.opacity = 0.72;
-      wallArrowHover = rh;
-      if (wallArrowHover) {
-        wallArrowHover.material.opacity = 1.0;
-        const dim = wallArrowHover.userData.dimension;
-        canvas.style.cursor = dim === 'height' ? 'ns-resize' : 'ew-resize';
-        showResizeTooltip(dim, e);
-      } else {
-        hideResizeTooltip();
-      }
-    } else if (!rh && !wallArrowHover) {
-      hideResizeTooltip();
-    }
-  }
-
   const hh = raycastHandles(e);
   const newId = hh ? hh.openingId : null;
   if (newId !== hoveredHandleId) {
     hoveredHandleId = newId;
     refreshHandleColors();
-    if (!wallArrowHover) {
-      canvas.style.cursor = activePaletteType ? 'crosshair' : (hoveredHandleId ? 'grab' : 'default');
-    }
+    canvas.style.cursor = activePaletteType ? 'crosshair' : (hoveredHandleId ? 'grab' : 'default');
   }
+
+  // Update edge handle sphere and opening handle visibility based on cursor proximity
+  updateEdgeHandleVisibility(e.clientX, e.clientY);
+  updateHandleVisibility(e.clientX, e.clientY);
 });
 
-function showResizeTooltip(dim, e) {
-  let el = document.getElementById('resizeTooltip');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'resizeTooltip';
-    el.style.cssText = 'position:fixed;background:rgba(0,0,0,0.75);color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;pointer-events:none;z-index:50;font-family:DM Sans,sans-serif;white-space:nowrap;';
-    document.body.appendChild(el);
-  }
-  const labels = { width: '↔ Width', depth: '↕ Depth', height: '↑ Height' };
-  el.textContent = labels[dim] || dim;
-  el.style.left = (e.clientX + 14) + 'px';
-  el.style.top  = (e.clientY - 10) + 'px';
-  el.style.display = 'block';
-}
-function hideResizeTooltip() {
-  const el = document.getElementById('resizeTooltip');
-  if (el) el.style.display = 'none';
-}
-
-canvas.addEventListener('contextmenu', e => { e.preventDefault(); const h=raycastHandles(e); if(h) deleteOpening(h.openingId); });
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  // Only delete if right-click didn't turn into a pan drag
+  if (!rightDragged) { const h = raycastHandles(e); if (h) deleteOpening(h.openingId); }
+  rightDragged = false;
+});
 
 window.addEventListener('keydown', e => {
   if (e.key==='Delete'||e.key==='Backspace') {
@@ -1933,7 +2052,7 @@ canvas.addEventListener('wheel', e => {
 // ─── TOUCH CONTROLS ────────────────────────────────────────────────────────────
 
 let touchState = null;
-// touchState types: 'orbit', 'pinch', 'handle', 'arrow'
+// touchState types: 'orbit', 'pinch', 'handle'
 
 function pinchDist(touches) {
   const dx = touches[0].clientX - touches[1].clientX;
@@ -1956,19 +2075,8 @@ canvas.addEventListener('touchstart', e => {
     return;
   }
 
-  // Single touch — check for arrow hit first
+  // Single touch — check for opening handle
   const fakeEvent = { clientX: t0.clientX, clientY: t0.clientY };
-  const arrowHit = raycastWallArrows(fakeEvent);
-  if (arrowHit) {
-    touchState = {
-      type: 'arrow',
-      dimension: arrowHit.userData.dimension,
-      lastX: t0.clientX, lastY: t0.clientY,
-    };
-    return;
-  }
-
-  // Check for opening handle
   const handleHit = raycastHandles(fakeEvent);
   if (handleHit) {
     const op = state.openings.find(o => o.id === handleHit.openingId);
@@ -1992,7 +2100,7 @@ canvas.addEventListener('touchmove', e => {
   e.preventDefault();
   if (!touchState) return;
 
-  if (e.touches.length === 2 && touchState.type !== 'arrow' && touchState.type !== 'handle') {
+  if (e.touches.length === 2 && touchState.type !== 'handle') {
     // Pinch to zoom + two-finger pan
     const dist = pinchDist(e.touches);
     const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
@@ -2022,29 +2130,6 @@ canvas.addEventListener('touchmove', e => {
 
   const t0 = e.touches[0];
 
-  if (touchState.type === 'arrow') {
-    const fakeEvent = { clientX: t0.clientX, clientY: t0.clientY };
-    const { dimension } = touchState;
-    if (dimension === 'width' || dimension === 'depth') {
-      const g = raycastGround(fakeEvent);
-      if (g) {
-        if (dimension === 'width')
-          state.width = Math.round(Math.max(2, Math.min(10, Math.abs(g.x)*2)) * 4) / 4;
-        else
-          state.depth = Math.round(Math.max(2, Math.min(8,  Math.abs(g.z)*2)) * 4) / 4;
-      }
-    } else {
-      // height: vertical drag
-      const dy = t0.clientY - touchState.lastY;
-      state.height = Math.round(Math.max(2.2, Math.min(3.5, state.height - dy*0.006)) * 10) / 10;
-      touchState.lastY = t0.clientY;
-    }
-    buildRoom();
-    if (typeof updatePriceDisplay === 'function') updatePriceDisplay();
-    if (typeof syncDimSliders === 'function') syncDimSliders();
-    return;
-  }
-
   if (touchState.type === 'handle') {
     const fakeEvent = { clientX: t0.clientX, clientY: t0.clientY };
     const wh = raycastWall(fakeEvent);
@@ -2073,7 +2158,7 @@ canvas.addEventListener('touchmove', e => {
 canvas.addEventListener('touchend', e => {
   if (e.touches.length === 0) {
     // Push undo snapshot when a dimension or opening drag completes via touch
-    if (touchState?.type === 'arrow' || touchState?.type === 'handle') {
+    if (touchState?.type === 'handle') {
       if (typeof stateHistory !== 'undefined') stateHistory.push();
     }
     touchState = null;
