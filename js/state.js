@@ -49,6 +49,7 @@ const stateHistory = {
     if (typeof syncSwatchesToState === 'function') syncSwatchesToState();
     if (typeof syncDimSliders === 'function') syncDimSliders();
     if (typeof renderOpeningsList === 'function') renderOpeningsList();
+    if (typeof renderPartitionsList === 'function') renderPartitionsList();
     this._paused = false;
     this._updateButtons();
   },
@@ -100,6 +101,10 @@ const state = {
     { id: 4, type: 'window', wall: 'back',  offset: 0, style: 'tilt_n_turn_window' },
   ],
   nextOpeningId: 5,
+
+  // ─── Interior partitions ──────────────────────────────────────────────────
+  partitions: [],
+  nextPartitionId: 1,
 
   // ─── Interior ─────────────────────────────────────────────────────────────
   interiorWalls: 'white_finished_walls',

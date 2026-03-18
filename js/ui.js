@@ -25,6 +25,102 @@ function updatePriceDisplay() {
   updateSpecsBar();
 }
 
+// ─── INTERIOR PARTITIONS ─────────────────────────────────────────────────────
+
+const _WALL_TK = 0.14; // must match TK in scene.js
+
+function addPartition(axis) {
+  const id = state.nextPartitionId++;
+  const hw = state.width / 2, hd = state.depth / 2;
+  const halfLen = 1.0;
+  const pos  = 0;
+  // Clamp within interior bounds (exclude exterior wall thickness)
+  const innerLimit = (axis === 'x' ? hw : hd) - _WALL_TK;
+  const start = Math.max(-innerLimit, -halfLen);
+  const end   = Math.min( innerLimit,  halfLen);
+  state.partitions.push({ id, axis, pos, start, end });
+  stateHistory.push();
+  buildRoom();
+  renderPartitionsList();
+}
+
+function removeLastPartition(axis) {
+  // Remove the most recently added partition of the given axis
+  const idx = state.partitions.map(p => p.axis).lastIndexOf(axis);
+  if (idx !== -1) {
+    state.partitions.splice(idx, 1);
+    stateHistory.push();
+    buildRoom();
+    renderPartitionsList();
+  }
+}
+
+// Called by drag-to-place with a world position
+function placePartitionAtPos(axis, cx, cz) {
+  const id  = state.nextPartitionId++;
+  const hw  = state.width / 2, hd = state.depth / 2;
+  const halfLen = 1.0;
+  let pos, start, end;
+  if (axis === 'x') {
+    pos   = Math.max(-hd, Math.min(hd, cz));
+    start = Math.max(-hw, Math.min(hw, cx - halfLen));
+    end   = Math.max(-hw, Math.min(hw, cx + halfLen));
+  } else {
+    pos   = Math.max(-hw, Math.min(hw, cx));
+    start = Math.max(-hd, Math.min(hd, cz - halfLen));
+    end   = Math.max(-hd, Math.min(hd, cz + halfLen));
+  }
+  if (end - start < 0.5) end = start + 0.5;
+  state.partitions.push({ id, axis, pos, start, end });
+  stateHistory.push();
+  buildRoom();
+  renderPartitionsList();
+}
+
+function removePartition(id) {
+  state.partitions = state.partitions.filter(p => p.id !== id);
+  stateHistory.push();
+  buildRoom();
+  renderPartitionsList();
+}
+
+function renderPartitionsList() {
+  const el = document.getElementById('partitionsList');
+  if (!el) return;
+  if (!state.partitions.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:4px 0">No interior walls added yet</div>';
+    return;
+  }
+  el.innerHTML = state.partitions.map(p => {
+    const label   = p.axis === 'x' ? 'Horizontal wall' : 'Vertical wall';
+    const lengthM = (p.end - p.start).toFixed(1);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:13px">${label} <span style="color:var(--muted);font-size:11px">${lengthM}m</span></span>
+      <button onclick="removePartition(${p.id})" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;padding:0 4px;line-height:1" title="Remove">×</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Drag-to-place partition from UI ──────────────────────────────────────────
+function partitionDragStart(e, axis) {
+  e.dataTransfer.setData('text/plain', axis);
+  e.dataTransfer.effectAllowed = 'copy';
+}
+
+function partitionDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+}
+
+function partitionDrop(e) {
+  e.preventDefault();
+  const axis = e.dataTransfer.getData('text/plain');
+  if (axis !== 'x' && axis !== 'z') return;
+  addPartition(axis);
+  const key = axis === 'x' ? 'horizontal_wall' : 'vertical_wall';
+  updateItemQty('structuralItems', key, 1);
+}
+
 // ─── SPECS BAR ───────────────────────────────────────────────────────────────
 
 function updateSpecsBar() {
@@ -202,6 +298,7 @@ function selectRoofFinish(key, el) {
   el.closest('.swatch-grid').querySelectorAll('.cat-swatch').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   stateHistory.push();
+  if (typeof _invalidateMat === 'function') _invalidateMat('roof_');
   buildRoom();
   updatePriceDisplay();
 }
@@ -222,6 +319,7 @@ function selectInteriorFloor(key, el) {
   el.closest('.swatch-grid').querySelectorAll('.cat-swatch').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   stateHistory.push();
+  if (typeof _invalidateMat === 'function') _invalidateMat('intFloor_');
   buildRoom();
   updatePriceDisplay();
 }
@@ -474,6 +572,7 @@ function flipDesign() {
   stateHistory.push();
   buildRoom();
   renderOpeningsList();
+  renderPartitionsList();
 }
 
 // ─── VIEW PRESETS ───────────────────────────────────────────────────────────────
@@ -644,6 +743,7 @@ function _applyStateSnapshot(snap) {
   syncSwatchesToState();
   syncDimSliders();
   renderOpeningsList();
+  renderPartitionsList();
 }
 
 // ── Presets ──────────────────────────────────────────────────────────────────────
@@ -784,6 +884,7 @@ function tryLoadFromURL() {
 function updatePaletteUI() {
   // Called by scene.js after palette/selection changes — keep openings list in sync.
   renderOpeningsList();
+  renderPartitionsList();
 }
 
 // ─── APPLY ADMIN DISABLED ITEMS ─────────────────────────────────────────────────

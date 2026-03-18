@@ -48,7 +48,7 @@
 <!-- ── 3D Viewport ────────────────────────────────────────────────────────── -->
 <div class="main">
   <div class="viewport">
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" ondragover="partitionDragOver(event)" ondrop="partitionDrop(event)"></canvas>
     <div class="view-hint">Drag to orbit · Right-click drag to pan · Scroll to zoom · Drag arrows to resize</div>
 
     <!-- Drop zone overlay (shown when dragging a panel item) -->
@@ -704,6 +704,8 @@
 
       <div class="section-title">Structural</div>
 
+      <div id="partitionsList" style="margin-bottom:10px"><div style="font-size:12px;color:var(--muted);padding:4px 0">No interior walls added yet</div></div>
+
 <div class="qty-grid">
   <div class="qty-item">
     <div class="qty-item-img"></div>
@@ -712,10 +714,11 @@
       <div class="qty-item-price">£500</div>
     </div>
     <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('structuralItems','vertical_wall',-1)">−</button>
+      <button class="qty-btn" onclick="updateItemQty('structuralItems','vertical_wall',-1);removeLastPartition('z')">−</button>
       <span class="qty-val" id="qty-vertical_wall">0</span>
-      <button class="qty-btn" onclick="updateItemQty('structuralItems','vertical_wall',1)">+</button>
+      <button class="qty-btn" onclick="updateItemQty('structuralItems','vertical_wall',1);addPartition('z')">+</button>
     </div>
+    <button onclick="updateItemQty('structuralItems','vertical_wall',1);addPartition('z')" style="margin-left:6px;padding:4px 10px;font-size:12px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent);color:white;cursor:pointer;font-weight:600">Add</button>
   </div>
   <div class="qty-item">
     <div class="qty-item-img"></div>
@@ -748,10 +751,11 @@
       <div class="qty-item-price">£500</div>
     </div>
     <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('structuralItems','horizontal_wall',-1)">−</button>
+      <button class="qty-btn" onclick="updateItemQty('structuralItems','horizontal_wall',-1);removeLastPartition('x')">−</button>
       <span class="qty-val" id="qty-horizontal_wall">0</span>
-      <button class="qty-btn" onclick="updateItemQty('structuralItems','horizontal_wall',1)">+</button>
+      <button class="qty-btn" onclick="updateItemQty('structuralItems','horizontal_wall',1);addPartition('x')">+</button>
     </div>
+    <button onclick="updateItemQty('structuralItems','horizontal_wall',1);addPartition('x')" style="margin-left:6px;padding:4px 10px;font-size:12px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent);color:white;cursor:pointer;font-weight:600">Add</button>
   </div>
 </div>
 

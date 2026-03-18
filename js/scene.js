@@ -265,6 +265,8 @@ const edgeHandleGroup = new THREE.Group();
 scene.add(buildingGroup);
 scene.add(handlesGroup);
 scene.add(edgeHandleGroup);
+const partitionHandleGroup = new THREE.Group();
+scene.add(partitionHandleGroup);
 
 // Exterior wall meshes collected during buildWallFace so interior view can
 // update their opacity each frame based on camera position.
@@ -486,7 +488,6 @@ function makeRoofMat(w, d) {
     cedar_roofing:               'assets/roof_cedar.jpg',
     pebbles_roof:                'assets/roof_pebbles.jpg',
     shingles_square_red_roofing: 'assets/roof_shingle_red.jpg',
-    // No dedicated texture for these — closest available substituted:
     corrugated_roofing:          'assets/roof_shingle_grey.jpg',
     shingles_square_black_roofing:'assets/roof_shingle_grey.jpg',
     coated_tile_roofing:         'assets/roof_shingle_grey.jpg',
@@ -494,7 +495,9 @@ function makeRoofMat(w, d) {
     sip_roof:                    'assets/roof_epdm.jpg',
   }[finish] || 'assets/roof_epdm.jpg';
   const cfg = ROOF_FINISH_CFG[finish] || { tilesPerMeter: 0.5, roughness: 0.90 };
-  return makeTiledMat({ texFile, worldW: w, worldH: d, tilesPerMeter: cfg.tilesPerMeter, roughness: cfg.roughness });
+  return _cachedMat(`roof_${finish}_${w.toFixed(2)}_${d.toFixed(2)}`, () =>
+    makeTiledMat({ texFile, worldW: w, worldH: d, tilesPerMeter: cfg.tilesPerMeter, roughness: cfg.roughness })
+  );
 }
 
 // Glass: physically-based, slightly reflective
@@ -521,6 +524,13 @@ const boardMat = new THREE.MeshStandardMaterial({ color: 0x6b4810, roughness: 0.
 const INTERIOR_FLOOR_COLORS = {
   oak: 0xc8a87a, walnut: 0x5c3a21, farm_oak: 0xb89a65, tiles: 0xd0cfc8,
   polished_concrete: 0x9e9e9e, gym_black: 0x2a2a2a, white_marble: 0xe8e4de, rubber: 0x3a3a3a,
+  // full state-key names
+  oak_flooring: 0x8b5e3c, farm_house_light_oak_flooring: 0xb89a65, farm_house_dark_oak_flooring: 0x6b4226,
+  aster_staggered_oak_flooring: 0x9e7045, phantom_oak_flooring: 0x5a4030, loft_dark_grey_oak_flooring: 0x4a4440,
+  decking_flooring: 0x7a5c3a, sip_floor: 0x8a8a8a, victorian_oak_flooring: 0x7a4e28,
+  rhino_oak_flooring: 0x6b5040, wiltshire_english_oak_flooring: 0xa07850, loft_midnight_oak_flooring: 0x2e2a28,
+  beech_flooring: 0xc8a87a, sawn_flooring: 0x8c7050, westchester_oak_flooring: 0x9a6840,
+  natural_oak_flooring: 0xb8935a, oak_parquet_flooring: 0xa07845, oxford_oak_flooring: 0x7a5230,
 };
 const INTERIOR_WALL_COLORS = {
   white: 0xf5f5f5, charcoal: 0x3a3a3a, plywood: 0xc4a46a, oak: 0xb48a52, tongue_groove: 0xd4b87a,
@@ -1171,9 +1181,38 @@ function buildGuttering(w, _d, h, hw, hd, ov) {
 
 // ─── MAIN BUILD ────────────────────────────────────────────────────────────────
 
+// Material cache — must be declared before _disposeBuildingGroup uses it
+const _matCache = new Map();
+function _cachedMat(key, factory) {
+  if (!_matCache.has(key)) _matCache.set(key, factory());
+  return _matCache.get(key);
+}
+function _invalidateMat(prefix) {
+  for (const k of _matCache.keys()) { if (k.startsWith(prefix)) _matCache.delete(k); }
+}
+
+function _disposeBuildingGroup() {
+  const cached = new Set(_matCache.values());
+  buildingGroup.traverse(obj => {
+    if (!obj.isMesh) return;
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach(m => {
+        if (cached.has(m)) return; // never dispose cached materials
+        ['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'].forEach(slot => {
+          if (m[slot]) m[slot].dispose();
+        });
+        m.dispose();
+      });
+    }
+  });
+}
+
 function buildRoom() {
   const gen = ++_buildGen;   // any async GLB that captures this will bail if gen no longer matches
   markDirty(8);  // GLBs load async — keep rendering for a few frames
+  _disposeBuildingGroup();
   while (buildingGroup.children.length) buildingGroup.remove(buildingGroup.children[0]);
   // Clear wall mesh registry so interior-view opacity is applied to fresh meshes.
   Object.keys(wallMeshes).forEach(k => { wallMeshes[k] = []; });
@@ -1200,7 +1239,9 @@ function buildRoom() {
   // Interior floor surface — roughness varies by finish
   const intFloorCol = INTERIOR_FLOOR_COLORS[state.interiorFloor] ?? 0xc8a87a;
   const floorRoughMap = { oak:0.70, walnut:0.65, farm_oak:0.72, tiles:0.40, polished_concrete:0.30, gym_black:0.60, white_marble:0.25, rubber:0.85 };
-  const intFloorMat = new THREE.MeshStandardMaterial({ color: intFloorCol, roughness: floorRoughMap[state.interiorFloor] ?? 0.70, metalness: 0.0 });
+  const intFloorMat = _cachedMat(`intFloor_${state.interiorFloor}`, () =>
+    new THREE.MeshStandardMaterial({ color: intFloorCol, roughness: floorRoughMap[state.interiorFloor] ?? 0.70, metalness: 0.0 })
+  );
   box(w-0.02, 0.005, d-0.02, 0, 0.185, 0, intFloorMat);
 
   const wallOps = { front:[], back:[], left:[], right:[] };
@@ -1363,6 +1404,7 @@ function buildRoom() {
   rebuildHandles();
   rebuildWallArrows();
   rebuildEdgeHandles();
+  buildPartitions();
   if (interiorViewMode) applyInteriorView();
   if (floorplanViewMode) {
     buildingGroup.traverse(child => {
@@ -1657,6 +1699,177 @@ function rebuildWallArrows() {
   wallArrowGroup.add(dLeft);
 }
 
+// ─── INTERIOR PARTITIONS ─────────────────────────────────────────────────────
+
+const partitionMeshes = [];
+
+function buildPartitions() {
+  partitionMeshes.forEach(({ mesh }) => {
+    buildingGroup.remove(mesh);
+    if (mesh.geometry) mesh.geometry.dispose();
+    if (mesh.material) mesh.material.dispose();
+  });
+  partitionMeshes.length = 0;
+
+  const floorY = 0.18, wallH = state.height;
+  const iwCol = INTERIOR_WALL_COLORS[state.interiorWalls] ?? 0xf5f5f5;
+
+  state.partitions.forEach(p => {
+    const len = p.end - p.start;
+    const W = p.axis === 'x' ? len : TK;
+    const D = p.axis === 'x' ? TK  : len;
+    const cx = p.axis === 'x' ? (p.start + p.end) / 2 : p.pos;
+    const cz = p.axis === 'x' ? p.pos : (p.start + p.end) / 2;
+    const mat = new THREE.MeshLambertMaterial({ color: iwCol, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(W, wallH, D), mat);
+    mesh.position.set(cx, floorY + wallH / 2, cz);
+    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.userData.partitionId = p.id;
+    buildingGroup.add(mesh);
+    partitionMeshes.push({ id: p.id, mesh });
+  });
+
+  rebuildPartitionHandles();
+}
+
+const PARTITION_MOVE_MAT = new THREE.MeshStandardMaterial({
+  color: 0x22c55e, transparent: true, opacity: 0,
+  roughness: 0.3, metalness: 0.1, depthWrite: false,
+});
+const PARTITION_END_MAT = new THREE.MeshStandardMaterial({
+  color: 0xf59e0b, transparent: true, opacity: 0,
+  roughness: 0.3, metalness: 0.1, depthWrite: false,
+});
+const PARTITION_HANDLE_RADIUS = 80;
+const partitionHandles = [];   // { id, role:'move'|'start'|'end', axis, mesh }
+
+function _partitionHandlePos(p) {
+  const topH = 0.18 + state.height + 0.05; // just above wall top
+  const cx = p.axis === 'x' ? (p.start + p.end) / 2 : p.pos;
+  const cz = p.axis === 'x' ? p.pos : (p.start + p.end) / 2;
+  const sx = p.axis === 'x' ? p.start : p.pos;
+  const sz = p.axis === 'x' ? p.pos   : p.start;
+  const ex = p.axis === 'x' ? p.end   : p.pos;
+  const ez = p.axis === 'x' ? p.pos   : p.end;
+  return {
+    move:  new THREE.Vector3(cx, topH, cz),
+    start: new THREE.Vector3(sx, topH, sz),
+    end:   new THREE.Vector3(ex, topH, ez),
+  };
+}
+
+// Reusable handle geometries — created once, never disposed
+const _PART_GEO_MOVE  = new THREE.CylinderGeometry(0.18, 0.18, 0.06, 20);
+const _PART_GEO_END   = new THREE.CylinderGeometry(0.14, 0.14, 0.06, 16);
+
+function rebuildPartitionHandles() {
+  // Dispose only the cloned materials, not the shared geometries
+  partitionHandleGroup.children.forEach(c => { if (c.material) c.material.dispose(); });
+  while (partitionHandleGroup.children.length) partitionHandleGroup.remove(partitionHandleGroup.children[0]);
+  partitionHandles.length = 0;
+
+  state.partitions.forEach(p => {
+    const pos = _partitionHandlePos(p);
+    [
+      { role: 'move',  mat: PARTITION_MOVE_MAT, geo: _PART_GEO_MOVE, p: pos.move  },
+      { role: 'start', mat: PARTITION_END_MAT,  geo: _PART_GEO_END,  p: pos.start },
+      { role: 'end',   mat: PARTITION_END_MAT,  geo: _PART_GEO_END,  p: pos.end   },
+    ].forEach(({ role, mat, geo, p: hpos }) => {
+      const mesh = new THREE.Mesh(geo, mat.clone());
+      mesh.position.copy(hpos);
+      mesh.userData.partitionId = p.id;
+      mesh.userData.partitionRole = role;
+      mesh.userData.partitionAxis = p.axis;
+      partitionHandleGroup.add(mesh);
+      partitionHandles.push({ id: p.id, role, axis: p.axis, mesh });
+    });
+  });
+}
+
+function updatePartitionHandleVisibility(mouseX, mouseY) {
+  const vp = document.querySelector('.viewport');
+  if (!vp) return;
+  const vr = vp.getBoundingClientRect();
+  partitionHandles.forEach(({ mesh }) => {
+    const v = mesh.position.clone().project(camera);
+    if (v.z >= 1) { mesh.material.opacity = 0; return; }
+    const sx = (v.x * 0.5 + 0.5) * vr.width;
+    const sy = (-v.y * 0.5 + 0.5) * vr.height;
+    const ddx = mouseX - vr.left - sx;
+    const ddy = mouseY - vr.top  - sy;
+    const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+    const target = dist < PARTITION_HANDLE_RADIUS ? Math.max(0.15, 1 - dist / PARTITION_HANDLE_RADIUS) : 0;
+    mesh.material.opacity += (target - mesh.material.opacity) * 0.25;
+    if (Math.abs(target - mesh.material.opacity) > 0.005) markDirty();
+  });
+}
+
+function raycastPartitionHandle(e) {
+  raycaster.setFromCamera(getMouseNDC(e), camera);
+  const hits = raycaster.intersectObjects(partitionHandleGroup.children, false);
+  if (!hits.length) return null;
+  return hits[0].object.material.opacity > 0.05 ? hits[0].object : null;
+}
+
+function _snapPos(axis, raw) {
+  // Snap perpendicular position to exterior wall interior face
+  const hw = state.width / 2, hd = state.depth / 2, snap = 0.35;
+  const limit = axis === 'x' ? hd : hw;
+  if (Math.abs(raw - limit) < snap)  return  limit;
+  if (Math.abs(raw + limit) < snap)  return -limit;
+  return Math.max(-limit, Math.min(limit, raw));
+}
+
+function _snapEnd(axis, raw) {
+  // Snap an endpoint to exterior wall and clamp within building
+  const hw = state.width / 2, hd = state.depth / 2, snap = 0.35;
+  const limit = axis === 'x' ? hw : hd;
+  if (Math.abs(raw - limit) < snap)  return  limit;
+  if (Math.abs(raw + limit) < snap)  return -limit;
+  return Math.max(-limit, Math.min(limit, raw));
+}
+
+// Ghost mesh shown while dragging a new partition from the UI
+let _partitionGhost = null;
+
+function _removePartitionGhost() {
+  if (_partitionGhost) { scene.remove(_partitionGhost); _partitionGhost = null; markDirty(2); }
+}
+
+function _partitionDragGhostAt(axis, clientX, clientY) {
+  // Convert screen coords to a synthetic mouse event for raycasting
+  const fakeE = { clientX, clientY };
+  const gp = raycastGround(fakeE);
+  if (!gp) { _removePartitionGhost(); return; }
+  const hw = state.width / 2, hd = state.depth / 2;
+  const cx = Math.max(-hw, Math.min(hw, gp.x));
+  const cz = Math.max(-hd, Math.min(hd, gp.z));
+  _updatePartitionGhost(axis, cx, cz);
+}
+
+function _partitionDropAt(axis, clientX, clientY) {
+  const fakeE = { clientX, clientY };
+  const gp = raycastGround(fakeE);
+  if (!gp) return;
+  if (typeof placePartitionAtPos === 'function') placePartitionAtPos(axis, gp.x, gp.z);
+}
+
+function _updatePartitionGhost(axis, cx, cz) {
+  const wallH = state.height;
+  const W = axis === 'x' ? 2.0 : TK;
+  const D = axis === 'x' ? TK  : 2.0;
+  if (!_partitionGhost) {
+    const mat = new THREE.MeshLambertMaterial({ color: 0x22c55e, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+    _partitionGhost = new THREE.Mesh(new THREE.BoxGeometry(W, wallH, D), mat);
+    scene.add(_partitionGhost);
+  } else {
+    _partitionGhost.geometry.dispose();
+    _partitionGhost.geometry = new THREE.BoxGeometry(W, wallH, D);
+  }
+  _partitionGhost.position.set(cx, 0.18 + wallH / 2, cz);
+  markDirty(2);
+}
+
 // ── EDGE DRAG HANDLES (blue spheres) ─────────────────────────────────────────
 // One sphere per wall face, sitting just outside the building at mid-wall height.
 // They are invisible until the cursor is within EDGE_HANDLE_RADIUS screen pixels,
@@ -1911,6 +2124,7 @@ function showPlacementError(msg) {
 let orbitActive=false, panActive=false, prevMouseX=0, prevMouseY=0;
 let rightDragged = false;  // true if right-click turned into a pan drag (suppresses delete-on-right-click)
 let edgeDragState = null;  // { wall, axis ('x'|'z'), sign (1|-1) } while dragging an edge handle
+let partitionDragState = null;  // { id, axis, groundAnchor }
 
 // ── Camera state: current values (what's rendered) and target values (where we're going)
 let orbitTheta=0.343, orbitPhi=1.350, orbitRadius=22.11;
@@ -1973,6 +2187,19 @@ canvas.addEventListener('mousedown', e => {
     return;
   }
 
+  // 0b. Partition handle → drag
+  const pHit = raycastPartitionHandle(e);
+  if (pHit) {
+    const id   = pHit.userData.partitionId;
+    const role = pHit.userData.partitionRole;
+    const axis = pHit.userData.partitionAxis;
+    const gp   = raycastGround(e);
+    partitionDragState = { id, role, axis, groundAnchor: gp };
+    canvas.style.cursor = 'grab';
+    pHit.material.opacity = 1;
+    return;
+  }
+
   // 1. Hit an opening handle → drag or select
   const hit = raycastHandles(e);
   if (hit) {
@@ -2022,6 +2249,11 @@ window.addEventListener('mouseup', () => {
     canvas.style.cursor = 'default';
     if (typeof stateHistory !== 'undefined') stateHistory.push();
   }
+  if (partitionDragState) {
+    partitionDragState = null;
+    canvas.style.cursor = 'default';
+    if (typeof stateHistory !== 'undefined') stateHistory.push();
+  }
   if (dragState) {
     dragState = null;
     canvas.style.cursor = activePaletteType ? 'crosshair' : (hoveredHandleId ? 'grab' : 'default');
@@ -2030,12 +2262,44 @@ window.addEventListener('mouseup', () => {
 });
 
 window.addEventListener('mousemove', e => {
-  // Edge handle drag → resize wall
+  // Partition drag — only rebuild partitions, not the whole room
+  if (partitionDragState) {
+    const { id, role, axis, groundAnchor } = partitionDragState;
+    const gp = raycastGround(e);
+    if (gp && groundAnchor) {
+      const p = state.partitions.find(p => p.id === id);
+      if (p) {
+        const prevPos = p.pos, prevStart = p.start, prevEnd = p.end;
+        const dX = gp.x - groundAnchor.x;
+        const dZ = gp.z - groundAnchor.z;
+        if (role === 'move') {
+          const raw = (axis === 'x') ? p.pos + dZ : p.pos + dX;
+          p.pos = _snapPos(axis, raw);
+        } else if (role === 'start') {
+          const raw = (axis === 'x') ? p.start + dX : p.start + dZ;
+          const snapped = _snapEnd(axis, raw);
+          if (p.end - snapped >= 0.5) p.start = snapped;
+        } else if (role === 'end') {
+          const raw = (axis === 'x') ? p.end + dX : p.end + dZ;
+          const snapped = _snapEnd(axis, raw);
+          if (snapped - p.start >= 0.5) p.end = snapped;
+        }
+        partitionDragState.groundAnchor = gp;
+        if (p.pos !== prevPos || p.start !== prevStart || p.end !== prevEnd) {
+          buildPartitions();
+          markDirty();
+        }
+      }
+    }
+    return;
+  }
+
+  // Edge handle drag → resize wall (only rebuild when snapped value changes)
   if (edgeDragState) {
     const { axis, sign, groundAnchor } = edgeDragState;
     const gp = raycastGround(e);
     if (gp && groundAnchor) {
-      // World-space delta along the relevant axis — fully camera-independent
+      const prevW = state.width, prevD = state.depth;
       if (axis === 'z') {
         const delta = gp.z - groundAnchor.z;
         state.depth = Math.round(Math.max(2, Math.min(8, state.depth + delta * sign * 2)) * 4) / 4;
@@ -2043,10 +2307,12 @@ window.addEventListener('mousemove', e => {
         const delta = gp.x - groundAnchor.x;
         state.width = Math.round(Math.max(2, Math.min(10, state.width + delta * sign * 2)) * 4) / 4;
       }
-      edgeDragState.groundAnchor = gp;  // advance anchor each frame
-      buildRoom();
-      if (typeof updatePriceDisplay === 'function') updatePriceDisplay();
-      if (typeof syncDimSliders === 'function') syncDimSliders();
+      edgeDragState.groundAnchor = gp;
+      if (state.width !== prevW || state.depth !== prevD) {
+        buildRoom();
+        if (typeof updatePriceDisplay === 'function') updatePriceDisplay();
+        if (typeof syncDimSliders === 'function') syncDimSliders();
+      }
     }
     return;
   }
@@ -2076,8 +2342,10 @@ window.addEventListener('mousemove', e => {
 
     const targetCx = wh.localX;
     const validCx  = findValidPosition(op.type, op.style, op.wall, targetCx, op.id);
-    if (validCx === null) return;   // no room anywhere — don't move
-    op.offset = validCx - dragState.wallW / 2;
+    if (validCx === null) return;
+    const newOffset = validCx - dragState.wallW / 2;
+    if (newOffset === op.offset) return;  // no change — skip rebuild
+    op.offset = newOffset;
 
     buildRoom();
     updatePriceDisplay();
@@ -2106,6 +2374,7 @@ window.addEventListener('mousemove', e => {
   // Update edge handle sphere and opening handle visibility based on cursor proximity
   updateEdgeHandleVisibility(e.clientX, e.clientY);
   updateHandleVisibility(e.clientX, e.clientY);
+  updatePartitionHandleVisibility(e.clientX, e.clientY);
 });
 
 canvas.addEventListener('contextmenu', e => {
