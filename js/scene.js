@@ -326,6 +326,12 @@ scene.add(presetRoomHandleGroup);
 const interiorDoorHandleGroup = new THREE.Group();
 scene.add(interiorDoorHandleGroup);
 
+// ─── DRAG-DROP GHOST GROUP ────────────────────────────────────────────────────
+const _ddGhost = new THREE.Group();
+_ddGhost.visible = false;
+scene.add(_ddGhost);
+let _ddState = null;
+
 // ── Dirty flags — which subsystems need rebuilding on next buildRoom() call ──
 const _buildDirty = { walls: true, roof: true, decking: true };
 function _dirtyAll() { _buildDirty.walls = true; _buildDirty.roof = true; _buildDirty.decking = true; }
@@ -3354,12 +3360,17 @@ function setActivePalette(type) {
   refreshHandleColors();
   if (typeof updatePaletteUI === 'function') updatePaletteUI();
   if (typeof renderSelectedOpening === 'function') renderSelectedOpening();
+  const banner = document.getElementById('placementBanner');
+  if (banner) {
+    banner.style.display = type ? 'flex' : 'none';
+    const label = document.getElementById('placementBannerLabel');
+    if (label) label.textContent = type === 'door' ? 'Click a wall to place door' : 'Click a wall to place window';
+  }
 }
 
 function selectHandle(id) {
   selectedHandleId = id;
-  activePaletteType = null;
-  if (typeof updatePaletteUI === 'function') updatePaletteUI();
+  setActivePalette(null);
   refreshHandleColors();
   if (typeof renderSelectedOpening === 'function') renderSelectedOpening();
 }
@@ -4651,6 +4662,110 @@ function onResize() {
 }
 window.addEventListener('resize', onResize);
 requestAnimationFrame(() => requestAnimationFrame(onResize));
+
+// ─── DRAG-DROP PLACEMENT SYSTEM ───────────────────────────────────────────────
+// Called from onmousedown on panel buttons. Builds a ghost in the scene that
+// follows the cursor; mouseup drops the item at the cursor position.
+
+function _clearDDGhost() {
+  _ddGhost.traverse(obj => {
+    if (!obj.isMesh && !obj.isLine) return;
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) { obj.material.dispose(); }
+  });
+  while (_ddGhost.children.length) _ddGhost.remove(_ddGhost.children[0]);
+  _ddGhost.visible = false;
+}
+
+function _ddFloorPoint(e) {
+  const rc = new THREE.Raycaster();
+  rc.setFromCamera(getMouseNDC(e), camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const pt = new THREE.Vector3();
+  return rc.ray.intersectPlane(plane, pt) ? pt.clone() : null;
+}
+
+function _buildDDGhost(category, type) {
+  _clearDDGhost();
+  if (category === 'furniture') {
+    const def = FURNITURE_CATALOG[type];
+    if (!def) return;
+    const geo  = new THREE.BoxGeometry(def.w, def.h, def.d);
+    const mat  = new THREE.MeshStandardMaterial({ color: 0x1e88e5, transparent: true, opacity: 0.40 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = def.h / 2;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x1565c0 }));
+    edges.position.y = def.h / 2;
+    _ddGhost.add(mesh, edges);
+  } else if (category === 'preset') {
+    const defaults = { bathroom:{w:2.0,d:1.8}, bedroom:{w:3.0,d:2.5}, office:{w:3.0,d:2.0} };
+    const { w, d } = defaults[type] || { w:2.5, d:2.0 };
+    const h = state.height;
+    const geo  = new THREE.BoxGeometry(w, h, d);
+    const mat  = new THREE.MeshStandardMaterial({ color: 0x43a047, transparent: true, opacity: 0.25 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = h / 2;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x2e7d32 }));
+    edges.position.y = h / 2;
+    _ddGhost.add(mesh, edges);
+  }
+  _ddGhost.visible = true;
+  markDirty();
+}
+
+function startDragDrop(category, type, e) {
+  e.preventDefault();
+  if (_ddState) { _clearDDGhost(); }
+  _buildDDGhost(category, type);
+  _ddState = { category, type };
+  document.body.style.cursor = 'grabbing';
+  document.addEventListener('mousemove', _ddOnMove);
+  document.addEventListener('mouseup',   _ddOnUp);
+}
+
+function _ddOnMove(e) {
+  if (!_ddState) return;
+  const pt = _ddFloorPoint(e);
+  if (pt) {
+    _ddGhost.position.set(pt.x, 0, pt.z);
+    _ddGhost.visible = true;
+  } else {
+    _ddGhost.visible = false;
+  }
+  markDirty();
+}
+
+function _ddOnUp(e) {
+  if (!_ddState) return;
+  const { category, type } = _ddState;
+  _ddState = null;
+  document.removeEventListener('mousemove', _ddOnMove);
+  document.removeEventListener('mouseup',   _ddOnUp);
+  document.body.style.cursor = '';
+  _clearDDGhost();
+  markDirty();
+
+  // Only place if mouse is over the canvas
+  const cr = canvas.getBoundingClientRect();
+  const overCanvas = e.clientX >= cr.left && e.clientX <= cr.right &&
+                     e.clientY >= cr.top  && e.clientY <= cr.bottom;
+
+  const pt = overCanvas ? _ddFloorPoint(e) : null;
+
+  if (category === 'furniture') {
+    const id = state.nextFurnitureId++;
+    const x = pt ? pt.x : 0;
+    const z = pt ? pt.z : 0;
+    state.furniture.push({ id, type, x, z, rotY: 0 });
+    stateHistory.push();
+    buildFurniture();
+    markDirty();
+    if (typeof renderFurnitureList === 'function') renderFurnitureList();
+  } else if (category === 'preset') {
+    if (typeof addPresetRoom === 'function') addPresetRoom(type);
+    // addPresetRoom defaults to back wall; user can drag it after placement
+  }
+}
 
 const _origUpdateCamera = updateCamera;
 

@@ -414,15 +414,17 @@ function selectDoorStyle(key, el) {
   state.defaultDoor = key;
   el.closest('.swatch-grid').querySelectorAll('.cat-swatch').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
+  if (typeof setActivePalette === 'function') setActivePalette('door');
 }
 
 function selectWindowStyle(key, el) {
   state.defaultWindow = key;
   el.closest('.swatch-grid').querySelectorAll('.cat-swatch').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
+  if (typeof setActivePalette === 'function') setActivePalette('window');
 }
 
-function selectGlazingType(key, el) {
+function selectGlazingType(_key, el) {
   el.closest('.swatch-grid').querySelectorAll('.cat-swatch').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   stateHistory.push();
@@ -815,6 +817,19 @@ function loadPreset(index) {
   const preset = DESIGN_PRESETS[index];
   if (!preset) return;
   _applyStateSnapshot(preset.state);
+}
+
+// ── New Build ─────────────────────────────────────────────────────────────────────
+
+function newBuild() {
+  document.getElementById('newBuildModal').classList.add('open');
+}
+
+function confirmNewBuild() {
+  document.getElementById('newBuildModal').classList.remove('open');
+  _applyStateSnapshot(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+  if (typeof renderFurnitureList === 'function') renderFurnitureList();
+  if (typeof setActivePalette === 'function') setActivePalette(null);
 }
 
 // ── Save / Load (localStorage) ──────────────────────────────────────────────────

@@ -65,78 +65,49 @@ const stateHistory = {
   canRedo() { return this.pointer < this.stack.length - 1; },
 };
 
-const state = {
-  // ─── Dimensions ───────────────────────────────────────────────────────────
-  width:  5.0,
-  depth:  4.0,
-  height: 2.5,
+// ─── DEFAULT STATE ────────────────────────────────────────────────────────────
+// Edit this object to change what the configurator loads with on first visit
+// and what "New Build" resets to.
 
-  // ─── Foundation ───────────────────────────────────────────────────────────
-  foundation: 'ground_screws',
-
-  // ─── Roof ─────────────────────────────────────────────────────────────────
-  roof:       'apex',
-  roofTilt:   2,
-  roofFinish: 'epdm',
-  apexPitch:  1.0,
-
-  // ─── Cladding ─────────────────────────────────────────────────────────────
-  cladding: 'vertical_cedar_cladding',
-  claddingTint: '#5c4033',
+const DEFAULT_STATE = {
+  width: 6, depth: 4.75, height: 2.5,
+  foundation: 'concrete',
+  roof: 'apex', roofTilt: 2, roofFinish: 'corrugated_roofing', apexPitch: 1,
+  cladding: 'vertical_cedar_cladding', claddingTint: '#5c4033',
   claddingPerWall: { front: null, back: null, left: null, right: null },
-
-  // ─── Frame / Trim ─────────────────────────────────────────────────────────
-  frameColour:  '#1a1a1a',
-  handleColour: 'black',
-
-  // ─── Openings ─────────────────────────────────────────────────────────────
-  defaultDoor:    'double_door',
-  defaultWindow:  'fixed_window',
-  defaultDoorMat: 'aluminium',
-
+  frameColour: '#1a1a1a', handleColour: 'black',
+  defaultDoor: 'double_door', defaultWindow: 'glass_window', defaultDoorMat: 'aluminium',
   openings: [
-    { id: 1, type: 'door',   wall: 'front', offset:  0.0, style: 'double_french_door' },
-    { id: 2, type: 'window', wall: 'left',  offset:  0.0, style: 'tilt_n_turn_window' },
-    { id: 3, type: 'window', wall: 'right', offset:  0.0, style: 'tilt_n_turn_window' },
+    { id: 1, type: 'door',   wall: 'front', offset: 0,                      style: 'double_french_door' },
+    { id: 2, type: 'window', wall: 'left',  offset: -1.0010264624337832,     style: 'tilt_n_turn_window' },
+    { id: 3, type: 'window', wall: 'right', offset: 0,                      style: 'tilt_n_turn_window' },
+    { id: 4, type: 'window', wall: 'back',  offset: 1.66307138692118,        style: 'glass_window' },
   ],
-  nextOpeningId: 4,
-
-  // ─── Interior partitions ──────────────────────────────────────────────────
-  partitions: [],
-  nextPartitionId: 1,
-
-  // ─── Preset rooms ─────────────────────────────────────────────────────────
-  presetRooms: [],
-  nextPresetRoomId: 1,
-
-  // ─── Furniture ────────────────────────────────────────────────────────────
-  furniture: [],
-  nextFurnitureId: 1,
-
-  // ─── Interior ─────────────────────────────────────────────────────────────
-  interiorWalls: 'white_finished_walls',
-  interiorFloor: 'oak_flooring',
-
-  // ─── Exterior finish ──────────────────────────────────────────────────────
+  nextOpeningId: 5,
+  partitions: [], nextPartitionId: 1,
+  presetRooms: [
+    { id: 1, type: 'office', wall: 'left', offset: -1.12125, width: 2.2274999999999996, depth: 2.86, doorOffset: 0 },
+  ],
+  nextPresetRoomId: 2,
+  furniture: [
+    { id: 173, type: '__preset__', x: -2.59,                    z: -1.44,                    rotY: 1.5707963267948966, localX:  0.31874999999999976, localZ: -1.0199999999999998, localRotY: 0,                   dims: { w: 1.33, h: 1.02, d: 0.56 }, model: 'assets/computer_desk.glb',  modelRotY: 0, label: 'Desk',        presetRoomId: 1 },
+    { id: 174, type: '__preset__', x: -1.8099999999999998,      z: -1.44,                    rotY: 1.5707963267948966, localX:  0.31874999999999976, localZ: -0.23999999999999982, localRotY: 0,                   dims: { w: 0.51, h: 0.99, d: 0.60 }, model: 'assets/office_chair.glb',   modelRotY: 0, label: 'Office Chair', presetRoomId: 1 },
+    { id: 175, type: '__preset__', x: -2.4899999999999998,      z: -0.3225000000000003,      rotY: 3.141592653589793,  localX: -0.7987499999999998,  localZ: -0.9199999999999998,  localRotY: 1.5707963267948966,  dims: { w: 0.76, h: 1.40, d: 0.37 }, model: 'assets/shelf_unit.glb',     modelRotY: 0, label: 'Bookshelf',   presetRoomId: 1 },
+    { id: 176, type: '__preset__', x: -0.40000000000000013,     z: -0.26750000000000024,     rotY: 1.5707963267948966, localX: -0.8537499999999998,  localZ:  1.17,                 localRotY: 0,                   dims: { w: 0.26, h: 1.03, d: 0.26 }, model: 'assets/watercooler.glb',    modelRotY: 0, label: 'Water Cooler', presetRoomId: 1 },
+    { id: 177, type: 'plant',        x: -2.265094642126492,     z:  1.9800000000000002,      rotY: 0 },
+    { id: 178, type: 'table_lamp',   x:  2.6900000000000004,    z: -2.0650000000000004,      rotY: 0 },
+    { id: 179, type: 'rug',          x:  1.7024149173050545,    z: -0.14083062465940577,     rotY: 0 },
+    { id: 180, type: 'coffee_table', x:  1.6022618016258268,    z: -0.11161591358817269,     rotY: 0 },
+    { id: 181, type: 'sofa_2',       x:  1.6723378420058908,    z:  1.1982104277095988,      rotY: 0 },
+    { id: 182, type: 'armchair',     x:  1.6881626431171757,    z: -1.305524929849346,       rotY: 3.1415926535897896 },
+  ],
+  nextFurnitureId: 183,
+  interiorWalls: 'white_finished_walls', interiorFloor: 'oak_flooring',
   guttering: 'gutter_black',
-
-  // ─── Decking ──────────────────────────────────────────────────────────────
-  extras: {
-    decking: false,
-  },
-  deckingMaterial:   'composite_decking',
-  deckingArea:       10,
-  deckingBalustrade: 'glass',
-
-  // ─── Service / site booleans ──────────────────────────────────────────────
-  mainsConnection:      false,
-  ethernetConnection:   false,
-  waterWasteConnection: false,
-  groundProtectionMats: false,
-  skipHire:             false,
-  groundworks:          false,
-
-  // ─── Quantity-based items ─────────────────────────────────────────────────
+  extras: { decking: false },
+  deckingMaterial: 'composite_decking', deckingArea: 10, deckingBalustrade: 'glass',
+  mainsConnection: false, ethernetConnection: false, waterWasteConnection: false,
+  groundProtectionMats: false, skipHire: false, groundworks: false,
   electricalItems: {
     double_socket: 0, single_socket: 0, floor_socket: 0, usb_socket: 0,
     smart_socket: 0, external_socket: 0, shaver_socket: 0, tv_socket: 0,
@@ -151,7 +122,6 @@ const state = {
     electrics: 0, isolator_20a: 0, isolator_45a: 0, fan_isolator: 0,
     pir_sensor: 0, extractor_fan: 0, data_point: 0,
   },
-
   bathroomItems: {
     bathroom: 0, shower_room: 0, cloakroom: 0,
     combined_vanity: 0, combined_toilet_vanity: 0, toilet_vanity: 0,
@@ -159,33 +129,14 @@ const state = {
     basin_pedestal: 0, toilet: 0, shower_tray: 0,
     electric_shower: 0, towel_rail: 0,
   },
-
-  heatingItems: {
-    climate_control: 0, wall_heater: 0, blow_heater: 0,
-    underfloor_heating: 0,
-  },
-
-  structuralItems: {
-    sip_walls: 0, sip_floor: 0, sip_roof: 0,
-    vertical_wall: 0, horizontal_wall: 0, mezzanine: 0,
-  },
-
-  roofPorchItems: {
-    roof_window: 0, roof_window_v2: 0, roof_window_v3: 0,
-    pergola: 0, trellis_canopy: 0,
-    canopy_roof_overhang: 0, veranda: 0,
-  },
-
-  miscItems: {
-    blinds: 0, windscreen: 0, glass_panels: 0, loggia_panels: 0,
-    solid_panel: 0, smoke_alarm: 0, smoke_heat_alarm: 0,
-  },
-
-  // ─── Scene ────────────────────────────────────────────────────────────────
-  groundType: 'grass',
-  structureType: 'freestanding',
+  heatingItems:    { climate_control: 0, wall_heater: 0, blow_heater: 0, underfloor_heating: 0 },
+  structuralItems: { sip_walls: 0, sip_floor: 0, sip_roof: 0, vertical_wall: 0, horizontal_wall: 0, mezzanine: 0 },
+  roofPorchItems:  { roof_window: 0, roof_window_v2: 0, roof_window_v3: 0, pergola: 0, trellis_canopy: 0, canopy_roof_overhang: 0, veranda: 0 },
+  miscItems:       { blinds: 0, windscreen: 0, glass_panels: 0, loggia_panels: 0, solid_panel: 0, smoke_alarm: 0, smoke_heat_alarm: 0 },
+  groundType: 'grass', structureType: 'freestanding',
   windowSillAdjust: 0,
   veranda: { enabled: false, depth: 1.5 },
-  gutterColour: '#1a1a1a',
-  units: 'metric',
+  gutterColour: '#1a1a1a', units: 'metric',
 };
+
+const state = JSON.parse(JSON.stringify(DEFAULT_STATE));
