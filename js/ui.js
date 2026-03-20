@@ -38,10 +38,72 @@ function addPartition(axis) {
   const innerLimit = (axis === 'x' ? hw : hd) - _WALL_TK;
   const start = Math.max(-innerLimit, -halfLen);
   const end   = Math.min( innerLimit,  halfLen);
-  state.partitions.push({ id, axis, pos, start, end });
+  state.partitions.push({ id, axis, pos, start, end, doors: [] });
   stateHistory.push();
   buildRoom();
   renderPartitionsList();
+}
+
+function addPresetRoom(type) {
+  const id = state.nextPresetRoomId++;
+  const defaults = {
+    bathroom: { width: 2.0, depth: 1.8 },
+    bedroom:  { width: 3.0, depth: 2.5 },
+    office:   { width: 3.0, depth: 2.0 },
+  };
+  const { width, depth } = defaults[type] || { width: 2.5, depth: 2.0 };
+  // Default to back wall, centred
+  state.presetRooms.push({ id, type, wall: 'back', offset: 0, width, depth, doorOffset: 0 });
+  stateHistory.push();
+  buildRoom();
+}
+
+function addFurniture(type) {
+  const id = state.nextFurnitureId++;
+  // Place at room centre; user drags it from there
+  state.furniture.push({ id, type, x: 0, z: 0, rotY: 0 });
+  stateHistory.push();
+  if (typeof buildFurniture === 'function') buildFurniture();
+  if (typeof markDirty === 'function') markDirty();
+  renderFurnitureList();
+}
+
+function renderFurnitureList() {
+  const el = document.getElementById('furnitureList');
+  if (!el) return;
+  if (!state.furniture.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:2px 0">No furniture placed</div>';
+    return;
+  }
+  const catalog = typeof FURNITURE_CATALOG !== 'undefined' ? FURNITURE_CATALOG : {};
+  el.innerHTML = state.furniture.map(f => {
+    const def = catalog[f.type];
+    const label = def ? def.label : f.type;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span>${label}</span>
+      <div style="display:flex;gap:4px">
+        <button onclick="rotateFurniture(${f.id})" style="border:none;background:none;cursor:pointer;font-size:14px;padding:0 4px" title="Rotate 90°">↻</button>
+        <button onclick="deleteFurniture(${f.id})" style="border:none;background:none;color:var(--warn);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function rotateFurniture(id) {
+  const f = state.furniture.find(x => x.id === id);
+  if (!f) return;
+  f.rotY = ((f.rotY ?? 0) + Math.PI / 2) % (Math.PI * 2);
+  stateHistory.push();
+  if (typeof buildFurniture === 'function') buildFurniture();
+  if (typeof markDirty === 'function') markDirty();
+}
+
+function deleteFurniture(id) {
+  state.furniture = state.furniture.filter(x => x.id !== id);
+  stateHistory.push();
+  if (typeof buildFurniture === 'function') buildFurniture();
+  if (typeof markDirty === 'function') markDirty();
+  renderFurnitureList();
 }
 
 function removeLastPartition(axis) {
@@ -71,7 +133,7 @@ function placePartitionAtPos(axis, cx, cz) {
     end   = Math.max(-hd, Math.min(hd, cz + halfLen));
   }
   if (end - start < 0.5) end = start + 0.5;
-  state.partitions.push({ id, axis, pos, start, end });
+  state.partitions.push({ id, axis, pos, start, end, doors: [] });
   stateHistory.push();
   buildRoom();
   renderPartitionsList();
@@ -228,6 +290,7 @@ function toggleUnits() {
   state.units = state.units === 'metric' ? 'imperial' : 'metric';
   document.getElementById('unitsLabel').textContent = state.units === 'metric' ? 'm' : 'ft';
   syncDimSliders();
+  if (typeof markDirty === 'function') markDirty();
 }
 
 // ─── GENERIC OPTION SELECT ──────────────────────────────────────────────────────
@@ -342,7 +405,7 @@ function selectFrameColour(hex, el) {
   el.closest('.colour-circles').querySelectorAll('.colour-dot').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   stateHistory.push();
-  buildRoom();
+  if (typeof applyFrameColour === 'function') applyFrameColour(); else buildRoom();
 }
 
 // ─── DOORS & WINDOWS ────────────────────────────────────────────────────────────
@@ -680,7 +743,7 @@ const DESIGN_PRESETS = [
         { id: 5, type: 'window', wall: 'front', offset:  1.5, style: 'fixed_window' },
       ],
       nextOpeningId: 6,
-      interiorWalls: 'tongue_and_groove_walls', interiorFloor: 'farm_oak_flooring',
+      interiorWalls: 'tongue_and_groove_finished_walls', interiorFloor: 'farm_oak_flooring',
       guttering: 'gutter_black',
     }
   },
@@ -716,7 +779,7 @@ const DESIGN_PRESETS = [
         { id: 3, type: 'window', wall: 'back',  offset: 0, style: 'fixed_window' },
       ],
       nextOpeningId: 4,
-      interiorWalls: 'plywood_walls', interiorFloor: 'oak_flooring',
+      interiorWalls: 'plywood_finished_walls', interiorFloor: 'oak_flooring',
       guttering: 'gutter_black',
     }
   },

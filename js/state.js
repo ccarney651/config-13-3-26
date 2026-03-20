@@ -69,15 +69,15 @@ const state = {
   // ─── Dimensions ───────────────────────────────────────────────────────────
   width:  5.0,
   depth:  4.0,
-  height: 2.7,
+  height: 2.5,
 
   // ─── Foundation ───────────────────────────────────────────────────────────
-  foundation: 'concrete',
+  foundation: 'ground_screws',
 
   // ─── Roof ─────────────────────────────────────────────────────────────────
   roof:       'apex',
   roofTilt:   2,
-  roofFinish: 'epdm_black_roofing',
+  roofFinish: 'epdm',
   apexPitch:  1.0,
 
   // ─── Cladding ─────────────────────────────────────────────────────────────
@@ -95,16 +95,23 @@ const state = {
   defaultDoorMat: 'aluminium',
 
   openings: [
-    { id: 1, type: 'door',   wall: 'front', offset: 0, style: 'sliding_2_part_door' },
-    { id: 2, type: 'window', wall: 'left',  offset: 0, style: 'fixed_window' },
-    { id: 3, type: 'window', wall: 'right', offset: 0, style: 'fixed_window' },
-    { id: 4, type: 'window', wall: 'back',  offset: 0, style: 'tilt_n_turn_window' },
+    { id: 1, type: 'door',   wall: 'front', offset:  0.0, style: 'double_french_door' },
+    { id: 2, type: 'window', wall: 'left',  offset:  0.0, style: 'tilt_n_turn_window' },
+    { id: 3, type: 'window', wall: 'right', offset:  0.0, style: 'tilt_n_turn_window' },
   ],
-  nextOpeningId: 5,
+  nextOpeningId: 4,
 
   // ─── Interior partitions ──────────────────────────────────────────────────
   partitions: [],
   nextPartitionId: 1,
+
+  // ─── Preset rooms ─────────────────────────────────────────────────────────
+  presetRooms: [],
+  nextPresetRoomId: 1,
+
+  // ─── Furniture ────────────────────────────────────────────────────────────
+  furniture: [],
+  nextFurnitureId: 1,
 
   // ─── Interior ─────────────────────────────────────────────────────────────
   interiorWalls: 'white_finished_walls',
@@ -117,9 +124,9 @@ const state = {
   extras: {
     decking: false,
   },
-  deckingMaterial:   'treated_decking',
+  deckingMaterial:   'composite_decking',
   deckingArea:       10,
-  deckingBalustrade: 'none',
+  deckingBalustrade: 'glass',
 
   // ─── Service / site booleans ──────────────────────────────────────────────
   mainsConnection:      false,
@@ -178,7 +185,7 @@ const state = {
   groundType: 'grass',
   structureType: 'freestanding',
   windowSillAdjust: 0,
-  veranda: { enabled: false, depth: 2.0 },
+  veranda: { enabled: false, depth: 1.5 },
   gutterColour: '#1a1a1a',
   units: 'metric',
 };

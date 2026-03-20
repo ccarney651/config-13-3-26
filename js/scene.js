@@ -36,14 +36,68 @@ function markDirty(frames = 2) {
 // texLoader hoisted here — used by setGroundType and makeWallMat before their call sites
 const texLoader = new THREE.TextureLoader();
 
+// ─── Admin-uploaded asset store (IndexedDB) ───────────────────────────────────
+// Files uploaded via the admin panel are stored in IDB under key 'file_{item_key}'.
+// On startup we pre-populate _adminFileUrls so texture/model loading can do a
+// synchronous check before falling back to disk paths.
+const _adminFileUrls = {};   // item_key → blob URL
+
+const _sceneDB = (() => {
+  let _db = null;
+  function open() {
+    if (_db) return Promise.resolve(_db);
+    return new Promise((res, rej) => {
+      const req = indexedDB.open('gardenroom_assets', 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore('files');
+      req.onsuccess = e => { _db = e.target.result; res(_db); };
+      req.onerror = rej;
+    });
+  }
+  return {
+    getAll() {
+      return open().then(db => new Promise((res, rej) => {
+        const results = {};
+        const req = db.transaction('files').objectStore('files').openCursor();
+        req.onsuccess = e => {
+          const cursor = e.target.result;
+          if (cursor) { results[cursor.key] = cursor.value; cursor.continue(); }
+          else res(results);
+        };
+        req.onerror = rej;
+      }));
+    },
+  };
+})();
+
+// Pre-load all admin-uploaded files into blob URLs before first render.
+// After populating _adminFileUrls, re-process floor textures so admin uploads take effect.
+_sceneDB.getAll().then(files => {
+  Object.entries(files).forEach(([idbKey, blob]) => {
+    if (!idbKey.startsWith('file_')) return;
+    const itemKey = idbKey.slice(5);
+    _adminFileUrls[itemKey] = URL.createObjectURL(blob);
+  });
+  if (Object.keys(_adminFileUrls).length) {
+    // Re-apply floor textures for any key that now has an admin upload
+    Object.entries(FLOOR_TEXTURE_DEFS).forEach(([key]) => {
+      const adminUrl = _adminFileUrls[key];
+      if (adminUrl) _loadFloorTex(key, adminUrl);
+    });
+    markDirty();
+  }
+}).catch(() => {});
+
+// Returns the admin-uploaded URL for an item key, or null if not present.
+function adminFileUrl(itemKey) { return _adminFileUrls[itemKey] || null; }
+
 // ── Architectural flat lighting ───────────────────────────────────────────────
 // Strong hemisphere fills all shadows; one soft key light adds just enough
 // directionality to read depth without harsh contrast.
-const hemiLight = new THREE.HemisphereLight(0xd8eaf8, 0xc0d0b4, 1.7);
+const hemiLight = new THREE.HemisphereLight(0xcce0f5, 0xb8c9a0, 2.0);
 scene.add(hemiLight);
 
-const sunLight = new THREE.DirectionalLight(0xfff8f4, 0.45);
-sunLight.position.set(8, 14, 5);
+const sunLight = new THREE.DirectionalLight(0xfff5e8, 0.85);
+sunLight.position.set(10, 18, 8);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
 sunLight.shadow.camera.left   = -16;
@@ -55,13 +109,13 @@ scene.add(sunLight);
 scene.add(sunLight.target);
 
 // Fill from opposite side — brightens shadowed faces to near-ambient level
-const fillLight = new THREE.DirectionalLight(0xe8f0ff, 0.5);
-fillLight.position.set(-8, 6, -5);
+const fillLight = new THREE.DirectionalLight(0xdce8ff, 0.55);
+fillLight.position.set(-10, 8, -6);
 scene.add(fillLight);
 
 // Rear fill so back wall is never dark
-const backLight = new THREE.DirectionalLight(0xf4f0ff, 0.35);
-backLight.position.set(0, 5, -10);
+const backLight = new THREE.DirectionalLight(0xf0ecff, 0.40);
+backLight.position.set(0, 6, -12);
 scene.add(backLight);
 
 // ── Time-of-day lighting ──────────────────────────────────────────────────────
@@ -76,14 +130,14 @@ function setTodEnabled(on) {
     setTimeOfDay(slider ? parseFloat(slider.value) : 10);
   } else {
     // Restore flat architectural lighting
-    hemiLight.color.setHex(0xd8eaf8);
-    hemiLight.groundColor.setHex(0xc0d0b4);
-    hemiLight.intensity = 1.7;
-    sunLight.color.setHex(0xfff8f4);
-    sunLight.intensity = 0.45;
-    sunLight.position.set(8, 14, 5);
-    fillLight.color.setHex(0xe8f0ff); fillLight.intensity = 0.5;
-    backLight.color.setHex(0xf4f0ff); backLight.intensity = 0.35;
+    hemiLight.color.setHex(0xcce0f5);
+    hemiLight.groundColor.setHex(0xb8c9a0);
+    hemiLight.intensity = 2.0;
+    sunLight.color.setHex(0xfff5e8);
+    sunLight.intensity = 0.85;
+    sunLight.position.set(10, 18, 8);
+    fillLight.color.setHex(0xdce8ff); fillLight.intensity = 0.55;
+    backLight.color.setHex(0xf0ecff); backLight.intensity = 0.40;
     skyDome.material.uniforms.uTop.value.setHex(0xb8ccd8);
     skyDome.material.uniforms.uHorizon.value.setHex(0xdde8ec);
     scene.fog.color.setHex(0xdde8ec);
@@ -259,14 +313,38 @@ const grid = new THREE.GridHelper(300, 300, 0x5a9a50, 0x5a9a50);
 grid.material.opacity = 0.08; grid.material.transparent = true;
 scene.add(grid);
 
-const buildingGroup = new THREE.Group();
+const buildingGroup = new THREE.Group();  // walls + floor
+const roofGroup     = new THREE.Group();  // roof panels + guttering
+const deckingGroup  = new THREE.Group();  // decking
 const handlesGroup  = new THREE.Group();
 const edgeHandleGroup = new THREE.Group();
-scene.add(buildingGroup);
-scene.add(handlesGroup);
-scene.add(edgeHandleGroup);
+scene.add(buildingGroup, roofGroup, deckingGroup, handlesGroup, edgeHandleGroup);
 const partitionHandleGroup = new THREE.Group();
 scene.add(partitionHandleGroup);
+const presetRoomHandleGroup = new THREE.Group();
+scene.add(presetRoomHandleGroup);
+const interiorDoorHandleGroup = new THREE.Group();
+scene.add(interiorDoorHandleGroup);
+
+// ── Dirty flags — which subsystems need rebuilding on next buildRoom() call ──
+const _buildDirty = { walls: true, roof: true, decking: true };
+function _dirtyAll() { _buildDirty.walls = true; _buildDirty.roof = true; _buildDirty.decking = true; }
+function _disposeGroup(grp) {
+  grp.traverse(obj => {
+    if (!obj.isMesh) return;
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      const cached = new Set(_matCache.values());
+      mats.forEach(m => {
+        if (cached.has(m)) return;
+        ['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'].forEach(s => { if (m[s]) m[s].dispose(); });
+        m.dispose();
+      });
+    }
+  });
+  while (grp.children.length) grp.remove(grp.children[0]);
+}
 
 // Exterior wall meshes collected during buildWallFace so interior view can
 // update their opacity each frame based on camera position.
@@ -506,11 +584,21 @@ const glassMat = new THREE.MeshStandardMaterial({
   roughness: 0.05, metalness: 0.1,
   side: THREE.DoubleSide, depthWrite: false,
 });
-// Frame: aluminium-style — slightly metallic
+// Frame: aluminium-style — slightly metallic (singleton — colour updated in place)
 let frameMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.45, metalness: 0.55 });
 function getFrameMat() {
   frameMat.color.set(state.frameColour || '#1a1a1a');
   return frameMat;
+}
+function applyFrameColour() {
+  frameMat.color.set(state.frameColour || '#1a1a1a');
+  markDirty();
+}
+// Gutter: singleton — colour updated in place, no rebuild needed
+const gutMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+function applyGutterColour() {
+  gutMat.color.set(state.gutterColour ?? '#1a1a1a');
+  markDirty();
 }
 // Concrete slab
 const slabMat  = new THREE.MeshStandardMaterial({ color: 0xccccbb, roughness: 0.92, metalness: 0.0 });
@@ -519,6 +607,110 @@ const floorMat = new THREE.MeshStandardMaterial({ color: 0xc8a87a, roughness: 0.
 // Decking
 const deckMat  = new THREE.MeshStandardMaterial({ color: 0x7a5210, roughness: 0.80, metalness: 0.0 });
 const boardMat = new THREE.MeshStandardMaterial({ color: 0x6b4810, roughness: 0.85, metalness: 0.0 });
+
+// Interior floor texture map — keyed by state.interiorFloor value (catalogue keys)
+// tilesPerMeter: how many texture repeats fit in 1 metre of floor
+const _T = (file, tilesPerMeter, roughness) => ({ file, tilesPerMeter, roughness });
+const _OAK = f => _T('assets/int_floor_oak.jpg',               f ?? 0.50, 0.70);
+const _FARM = f => _T('assets/int_floor_farm_oak.jpg',         f ?? 0.40, 0.72);
+const _WALT = f => _T('assets/int_floor_walnut.jpg',           f ?? 0.50, 0.65);
+const _TILE = f => _T('assets/int_floor_tiles.jpg',            f ?? 1.00, 0.40);
+const _CONC = f => _T('assets/int_floor_polished_concrete.jpg',f ?? 0.25, 0.30);
+const _GYM  = f => _T('assets/int_floor_gym_black.jpg',        f ?? 1.00, 0.60);
+const _RUBB = f => _T('assets/int_floor_rubber.jpg',           f ?? 1.00, 0.85);
+
+const FLOOR_TEXTURE_DEFS = {
+  // ── Oak / light wood ─────────────────────────────────────────────────────
+  oak_flooring:                              _OAK(),
+  natural_oak_flooring:                      _OAK(),
+  oak_parquet_flooring:                      _OAK(),
+  oxford_oak_flooring:                       _OAK(),
+  victorian_oak_flooring:                    _OAK(),
+  wiltshire_english_oak_flooring:            _OAK(),
+  westchester_oak_flooring:                  _OAK(),
+  aster_staggered_oak_flooring:              _OAK(),
+  rhino_oak_flooring:                        _OAK(),
+  beech_flooring:                            _OAK(),
+  sawn_flooring:                             _OAK(),
+  kentucky_oak_beige_flooring:               _OAK(),
+  aspen_oak_flooring:                        _OAK(),
+  sicilia_oak_flooring:                      _OAK(),
+  tongue_and_groove_flooring:                _OAK(),
+  honey_oak_flooring:                        _OAK(),
+  liguiria_oak_flooring:                     _OAK(),
+  // ── Farm / wide-board oak ────────────────────────────────────────────────
+  farm_house_light_oak_flooring:             _FARM(),
+  farm_house_dark_oak_flooring:              _FARM(),
+  farm_oak_flooring:                         _FARM(),
+  // ── Dark oak / walnut ────────────────────────────────────────────────────
+  phantom_oak_flooring:                      _WALT(),
+  loft_dark_grey_oak_flooring:               _WALT(),
+  loft_midnight_oak_flooring:                _WALT(),
+  dark_oak_parquet_flooring:                 _WALT(),
+  wiltshire_weathered_grey_parquet_flooring: _WALT(),
+  walnut_flooring:                           _WALT(),
+  // ── Tiles / stone ────────────────────────────────────────────────────────
+  tiles_flooring:                            _TILE(),
+  stone_porcelain_ocre_tiles:                _TILE(),
+  stone_porcelain_gris_tiles:                _TILE(),
+  grey_stone_flooring:                       _TILE(),
+  beige_stone_flooring:                      _TILE(),
+  white_tiles_flooring:                      _TILE(),
+  hadley_tiles_flooring:                     _TILE(),
+  // ── Polished concrete / SIP ──────────────────────────────────────────────
+  sip_floor:                                 _CONC(),
+  // ── Gym ─────────────────────────────────────────────────────────────────
+  black_gym_flooring:                        _GYM(),
+  // ── Rubber (all colour variants share the same texture) ──────────────────
+  light_grey_rubber_flooring:                _RUBB(),
+  light_green_rubber_flooring:               _RUBB(),
+  black_rubber_flooring:                     _RUBB(),
+  orange_rubber_flooring:                    _RUBB(),
+  green_rubber_flooring:                     _RUBB(),
+  red_rubber_flooring:                       _RUBB(),
+  dark_grey_rubber_flooring:                 _RUBB(),
+  beige_rubber_flooring:                     _RUBB(),
+  dark_blue_rubber_flooring:                 _RUBB(),
+  mid_blue_rubber_flooring:                  _RUBB(),
+  light_blue_rubber_flooring:                _RUBB(),
+  // ── No texture available — will fall back to solid colour ─────────────────
+  // white_marble_flooring → no marble texture yet
+  // decking_flooring → exterior product, no interior texture
+};
+// Pre-load all floor textures at startup.
+// Priority: admin-uploaded file (IDB blob URL) > shared file cache > disk path.
+const _floorTexCache = {};   // key → THREE.Texture
+const _floorTexByFile = {};  // disk file path → THREE.Texture (deduplicate disk loads)
+
+function _loadFloorTex(key, url) {
+  texLoader.load(url, tex => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    _floorTexCache[key] = tex;
+    markDirty();
+  });
+}
+
+Object.entries(FLOOR_TEXTURE_DEFS).forEach(([key, def]) => {
+  // 1. Admin-uploaded file for this exact item key takes top priority
+  const adminUrl = adminFileUrl(key);
+  if (adminUrl) { _loadFloorTex(key, adminUrl); return; }
+  // 2. Reuse already-loaded texture for the same disk file
+  if (_floorTexByFile[def.file]) { _floorTexCache[key] = _floorTexByFile[def.file]; return; }
+  // 3. Load from disk, share result with all keys that reference the same file
+  texLoader.load(def.file, tex => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    _floorTexByFile[def.file] = tex;
+    // Apply to all keys sharing this file that don't already have an admin override
+    Object.entries(FLOOR_TEXTURE_DEFS).forEach(([k2, d2]) => {
+      if (d2.file === def.file && !_floorTexCache[k2]) _floorTexCache[k2] = tex;
+    });
+    markDirty();
+  });
+});
 
 // Interior colour maps
 const INTERIOR_FLOOR_COLORS = {
@@ -533,8 +725,60 @@ const INTERIOR_FLOOR_COLORS = {
   natural_oak_flooring: 0xb8935a, oak_parquet_flooring: 0xa07845, oxford_oak_flooring: 0x7a5230,
 };
 const INTERIOR_WALL_COLORS = {
+  // Short legacy keys (kept for backwards compat)
   white: 0xf5f5f5, charcoal: 0x3a3a3a, plywood: 0xc4a46a, oak: 0xb48a52, tongue_groove: 0xd4b87a,
+  // Actual catalogue keys used by index.html
+  white_finished_walls:          0xf5f5f5,
+  charcoal_grey_finished_walls:  0x3a3a3a,
+  plywood_finished_walls:        0xc4a46a,
+  oak_panels_finished_walls:     0xb48a52,
+  tongue_and_groove_finished_walls: 0xd4b87a,
+  alder_wood_finished_walls:     0xc8a870,
+  studs_membrane_finished_walls: 0xe8e4dc,
+  studs_osb_finished_walls:      0xc8b48a,
+  studs_insulation_finished_walls: 0xe0dcd4,
+  melamine_boards_finished_walls: 0xf0ede8,
+  light_yellow_finished_walls:   0xf5f0d8,
+  light_blue_finished_walls:     0xd8ecf5,
+  light_green_finished_walls:    0xd8eadc,
+  pine_walls:                    0xd4b87a,  // fallback for old state
+  // Preset/save keys
+  plywood_walls:                 0xc4a46a,
+  tongue_and_groove_walls:       0xd4b87a,
 };
+
+// Texture paths for interior wall finishes (takes priority over flat colour)
+const INTERIOR_WALL_TEXTURES = {
+  white_finished_walls:         'assets/int_wall_white.jpg',
+  charcoal_grey_finished_walls: 'assets/int_wall_charcoal.jpg',
+  plywood_finished_walls:       'assets/int_wall_plywood.jpg',
+  plywood_walls:                'assets/int_wall_plywood.jpg',
+  oak_panels_finished_walls:    'assets/int_wall_oak.jpg',
+};
+
+const _iwTexCache = {};
+function _getIwTex(key) {
+  const path = INTERIOR_WALL_TEXTURES[key];
+  if (!path) return null;
+  if (!_iwTexCache[path]) {
+    const t = texLoader.load(path);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(2, 2);
+    _iwTexCache[path] = t;
+  }
+  return _iwTexCache[path];
+}
+
+function makeIwMat(key) {
+  const tex = _getIwTex(key);
+  const col = INTERIOR_WALL_COLORS[key] ?? 0xf5f5f5;
+  return new THREE.MeshStandardMaterial({
+    map: tex || null,
+    color: tex ? 0xffffff : col,
+    roughness: 0.85, metalness: 0,
+    side: THREE.FrontSide,
+  });
+}
 
 const HANDLE_DOOR_COLOR  = 0xf59e0b;
 const HANDLE_WIN_COLOR   = 0x38bdf8;
@@ -546,9 +790,16 @@ const HANDLE_SEL_COLOR   = 0xef4444;
 const gltfLoader = new THREE.GLTFLoader();
 const modelCache = {};
 function loadModel(file) {
+  // Derive item key from filename: 'assets/door_french.glb' → 'door_french'
+  const itemKey = file.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
+  const adminUrl = adminFileUrl(itemKey);
+  const resolvedFile = adminUrl || file;
   return new Promise(resolve => {
-    if (modelCache[file]) { resolve(modelCache[file].clone()); return; }
-    gltfLoader.load(file, gltf => { modelCache[file] = gltf.scene; resolve(gltf.scene.clone()); }, undefined, err => { console.warn('GLB:', file, err); resolve(null); });
+    if (!adminUrl && modelCache[file]) { resolve(modelCache[file].clone()); return; }
+    gltfLoader.load(resolvedFile, gltf => {
+      if (!adminUrl) modelCache[file] = gltf.scene;
+      resolve(gltf.scene.clone());
+    }, undefined, err => { console.warn('GLB:', resolvedFile, err); resolve(null); });
   });
 }
 
@@ -865,8 +1116,7 @@ function buildSideWallFull(wallId, pts, worldW, worldH, descriptors, hw, hd, gen
   buildFace(wallX, extMat);
 
   // Interior face — inset by wall thickness, plain interior colour
-  const iwCol = INTERIOR_WALL_COLORS[state.interiorWalls] ?? 0xf5f5f5;
-  const iwMat = new THREE.MeshLambertMaterial({ color: iwCol, side: THREE.DoubleSide });
+  const iwMat = makeIwMat(state.interiorWalls); iwMat.side = THREE.DoubleSide;
   const inset = wallId === 'left' ? TK : -TK;
   buildFace(wallX + inset, iwMat);
 
@@ -894,8 +1144,7 @@ function buildWallFace(wallId, wallW, wallH, descriptors, hw, hd, gen) {
   const wallTexInfo = makeWallTexInfo(wallId);  // per-wall cladding override support
 
   // Interior wall material (passed via closure from buildRoom)
-  const iwCol = INTERIOR_WALL_COLORS[state.interiorWalls] ?? 0xf5f5f5;
-  const iwMat = new THREE.MeshLambertMaterial({ color: iwCol });
+  const iwMat = makeIwMat(state.interiorWalls);
 
   getWallPanels(wallW, wallH, descriptors).forEach(({ cx, cy, w, h }) => {
     // Each panel gets its own material with repeat/offset matched to its actual
@@ -993,8 +1242,8 @@ function buildRoof(w, d, h, hw, hd) {
   const roofY = 0.18 + h, ov = 0.3, panelD = d + ov * 2, pT = 0.1;
   // rMat is set per-branch below with the correct panel dimensions.
   let rMat;
-  const rp = (W, D, x, y, z, rz=0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(W, pT, D), rMat); m.position.set(x,y,z); m.rotation.z=rz; m.castShadow=true; m.userData.isRoof=true; buildingGroup.add(m); };
-  const fa = (W, H, D, x, y, z)    => { const m = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), getFrameMat()); m.position.set(x,y,z); m.userData.isRoof=true; buildingGroup.add(m); };
+  const rp = (W, D, x, y, z, rz=0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(W, pT, D), rMat); m.position.set(x,y,z); m.rotation.z=rz; m.castShadow=true; m.userData.isRoof=true; roofGroup.add(m); };
+  const fa = (W, H, D, x, y, z)    => { const m = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), getFrameMat()); m.position.set(x,y,z); m.userData.isRoof=true; roofGroup.add(m); };
 
   if (state.roof === 'flat') {
     rMat = makeRoofMat(w + ov * 2, panelD);
@@ -1005,14 +1254,14 @@ function buildRoof(w, d, h, hw, hd) {
     panelM.rotation.x = -tiltRad;  // negative: front(+Z) is HIGH, back(-Z) is LOW
     panelM.castShadow = true;
     panelM.userData.isRoof = true;
-    buildingGroup.add(panelM);
+    roofGroup.add(panelM);
     // Soffit — covers the underside of the roof panel so the finish texture isn't
     // visible when looking up from outside. Sits just below the panel, same tilt.
     const soffitM = new THREE.Mesh(new THREE.BoxGeometry(w+ov*2, 0.005, panelD), getFrameMat());
     soffitM.position.set(0, roofY - 0.003, 0);
     soffitM.rotation.x = -tiltRad;
     soffitM.userData.isRoof = true;
-    buildingGroup.add(soffitM);
+    roofGroup.add(soffitM);
     // Fascia heights adjust with tilt: front is higher, back lower
     const tiltRise = Math.tan(tiltRad) * (hd + ov);
     // fH sized to cover the roof panel edge (pT=0.1 thick): top aligns with roof top, bottom 6cm below underside.
@@ -1045,13 +1294,13 @@ function buildRoof(w, d, h, hw, hd) {
         1,3,7, 1,7,5,     // right side
       ]);
       geo.computeVertexNormals();
-      const m = new THREE.Mesh(geo, getFrameMat()); m.castShadow=true; m.userData.isRoof=true; buildingGroup.add(m);
+      const m = new THREE.Mesh(geo, getFrameMat()); m.castShadow=true; m.userData.isRoof=true; roofGroup.add(m);
     });
     if (state.extras.lantern) {
       const lw=w*0.38,ld=d*0.38,ly=roofY+pT;
       rp(lw+0.1,ld+0.1,0,ly+0.08,0);
       const lg=new THREE.Mesh(new THREE.BoxGeometry(lw,0.55,ld),new THREE.MeshPhongMaterial({color:0xd0ecff,transparent:true,opacity:0.45,shininess:120}));
-      lg.position.set(0,ly+0.435,0); lg.userData.isRoof=true; buildingGroup.add(lg);
+      lg.position.set(0,ly+0.435,0); lg.userData.isRoof=true; roofGroup.add(lg);
       rp(lw+0.08,ld+0.08,0,ly+0.72,0);
     }
   } else if (state.roof === 'apex') {
@@ -1062,15 +1311,15 @@ function buildRoof(w, d, h, hw, hd) {
 
     // ── Front slope panel ──
     const fp=new THREE.Mesh(new THREE.BoxGeometry(spanW,pT,slopeLen),rMat);
-    fp.position.set(0,roofY+rh/2,spanZ/2); fp.rotation.x=angle; fp.castShadow=true; fp.userData.isRoof=true; buildingGroup.add(fp);
+    fp.position.set(0,roofY+rh/2,spanZ/2); fp.rotation.x=angle; fp.castShadow=true; fp.userData.isRoof=true; roofGroup.add(fp);
 
     // ── Back slope panel ──
     const bp=new THREE.Mesh(new THREE.BoxGeometry(spanW,pT,slopeLen),rMat);
-    bp.position.set(0,roofY+rh/2,-spanZ/2); bp.rotation.x=-angle; bp.castShadow=true; bp.userData.isRoof=true; buildingGroup.add(bp);
+    bp.position.set(0,roofY+rh/2,-spanZ/2); bp.rotation.x=-angle; bp.castShadow=true; bp.userData.isRoof=true; roofGroup.add(bp);
 
     // ── Ridge beam ──
     const ridge=new THREE.Mesh(new THREE.BoxGeometry(spanW+0.1,0.10,0.10),getFrameMat());
-    ridge.position.set(0,roofY+rh+pT/2,0); ridge.userData.isRoof=true; buildingGroup.add(ridge);
+    ridge.position.set(0,roofY+rh+pT/2,0); ridge.userData.isRoof=true; roofGroup.add(ridge);
 
     // Gable end fills are now handled by buildSideWallFull (pentagon polygon) in buildRoom.
 
@@ -1097,14 +1346,14 @@ function buildRoof(w, d, h, hw, hd) {
       frRake.rotation.x = angle;
       frRake.castShadow = true;
       frRake.userData.isRoof = true;
-      buildingGroup.add(frRake);
+      roofGroup.add(frRake);
       // Back-facing slope rake (-Z half)
       const bkRake = new THREE.Mesh(new THREE.BoxGeometry(rakeFD, rakeH, rakeLen), getFrameMat());
       bkRake.position.set(xPos, roofY + rh/2, -spanZ/2);
       bkRake.rotation.x = -angle;
       bkRake.castShadow = true;
       bkRake.userData.isRoof = true;
-      buildingGroup.add(bkRake);
+      roofGroup.add(bkRake);
     });
 
   }
@@ -1114,7 +1363,7 @@ function buildRoof(w, d, h, hw, hd) {
 }
 
 function buildGuttering(w, _d, h, hw, hd, ov) {
-  const gutMat = new THREE.MeshLambertMaterial({ color: state.gutterColour ?? 0x1a1a1a });
+  gutMat.color.set(state.gutterColour ?? '#1a1a1a');  // update singleton colour
 
   // ── Gutter cross-section: U-channel made of 3 thin plates ───────────────────
   const tP  = 0.013;  // plate thickness
@@ -1140,17 +1389,17 @@ function buildGuttering(w, _d, h, hw, hd, ov) {
     // Back plate — flat against the fascia outer face
     const bk = new THREE.Mesh(new THREE.BoxGeometry(span, bkH, tP), gutMat);
     bk.position.set(0, gutTopY - bkH / 2, faceZ - tP / 2);
-    bk.castShadow = true; bk.userData.isGutter = true; buildingGroup.add(bk);
+    bk.castShadow = true; bk.userData.isGutter = true; roofGroup.add(bk);
 
     // Bottom plate — horizontal, projects outward (-Z) from base of back plate
     const bt = new THREE.Mesh(new THREE.BoxGeometry(span, tP, chW), gutMat);
     bt.position.set(0, gutTopY - bkH - tP / 2, faceZ - tP - chW / 2);
-    bt.castShadow = true; bt.userData.isGutter = true; buildingGroup.add(bt);
+    bt.castShadow = true; bt.userData.isGutter = true; roofGroup.add(bt);
 
     // Front lip — shorter upstand at the outer edge
     const fp = new THREE.Mesh(new THREE.BoxGeometry(span, fpH, tP), gutMat);
     fp.position.set(0, gutTopY - bkH + fpH / 2, faceZ - tP - chW + tP / 2);
-    fp.castShadow = true; fp.userData.isGutter = true; buildingGroup.add(fp);
+    fp.castShadow = true; fp.userData.isGutter = true; roofGroup.add(fp);
   }
 
   // Single square-section downpipe at the right-hand back corner.
@@ -1161,7 +1410,7 @@ function buildGuttering(w, _d, h, hw, hd, ov) {
     const dpH  = Math.max(0.05, topY - botY);
     const m = new THREE.Mesh(new THREE.BoxGeometry(dpS, dpH, dpS), gutMat);
     m.position.set(hw, botY + dpH / 2, dpZ);
-    m.castShadow = true; m.userData.isGutter = true; buildingGroup.add(m);
+    m.castShadow = true; m.userData.isGutter = true; roofGroup.add(m);
   }
 
   if (state.roof === 'apex') {
@@ -1209,11 +1458,59 @@ function _disposeBuildingGroup() {
   });
 }
 
+function buildDecking(w, hd) {
+  _disposeGroup(deckingGroup);
+  if (!state.extras.decking || !(state.deckingArea > 0)) return;
+  const da = state.deckingArea;
+  const dw = Math.min(w * 1.5, Math.sqrt(da * (w / Math.max(w, 3)) * 2));
+  const dd = da / dw;
+  const deckCol = { softwood: 0x7a5210, hardwood: 0x5a3a10, composite: 0x6b6055 }[state.deckingMaterial] || 0x7a5210;
+  const deckRough = { softwood: 0.82, hardwood: 0.78, composite: 0.65 }[state.deckingMaterial] ?? 0.82;
+  const dMat = new THREE.MeshStandardMaterial({ color: deckCol, roughness: deckRough, metalness: 0.0 });
+  const dBoardMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(deckCol).multiplyScalar(0.85), roughness: deckRough + 0.05, metalness: 0.0 });
+  const dbox = (W, H, D, x, y, z, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), mat);
+    m.position.set(x, y, z); m.castShadow = true; deckingGroup.add(m); return m;
+  };
+  dbox(dw, 0.07, dd, 0, 0.18, hd + dd/2 + 0.02, dMat);
+  const plankW = 0.12, gap = 0.02;
+  for (let i = 0; i < Math.floor(dd / (plankW + gap)); i++) {
+    dbox(dw, 0.015, plankW, 0, 0.22, hd + i * (plankW + gap) + plankW/2 + 0.04, dBoardMat);
+  }
+  const bType = state.deckingBalustrade;
+  if (bType && bType !== 'none') {
+    const postH = 0.9, railY = 0.18 + postH;
+    const fMat = getFrameMat();
+    const deckZ0 = hd + 0.02, deckZ1 = hd + dd + 0.02;
+    const deckX0 = -dw/2, deckX1 = dw/2;
+    const postPositions = [];
+    for (let x = deckX0; x <= deckX1 + 0.01; x += Math.min(1.0, dw)) postPositions.push([x, deckZ1]);
+    for (let z = deckZ0 + 1.0; z < deckZ1; z += 1.0) { postPositions.push([deckX0, z]); postPositions.push([deckX1, z]); }
+    postPositions.forEach(([px, pz]) => dbox(0.05, postH, 0.05, px, 0.18 + postH/2, pz, fMat));
+    dbox(dw, 0.04, 0.05, 0, railY, deckZ1, fMat);
+    dbox(0.05, 0.04, dd, deckX0, railY, hd + dd/2 + 0.02, fMat);
+    dbox(0.05, 0.04, dd, deckX1, railY, hd + dd/2 + 0.02, fMat);
+    if (bType === 'glass' || bType === 'frameless') {
+      const gMat = new THREE.MeshStandardMaterial({ color: 0xa8d8ea, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false });
+      dbox(dw, postH * 0.8, 0.01, 0, 0.18 + postH * 0.45, deckZ1, gMat);
+      dbox(0.01, postH * 0.8, dd, deckX0, 0.18 + postH * 0.45, hd + dd/2 + 0.02, gMat);
+      dbox(0.01, postH * 0.8, dd, deckX1, 0.18 + postH * 0.45, hd + dd/2 + 0.02, gMat);
+    } else if (bType === 'picket') {
+      for (let x = deckX0 + 0.1; x < deckX1; x += 0.1) dbox(0.025, postH * 0.75, 0.025, x, 0.18 + postH * 0.4, deckZ1, fMat);
+      for (let z = deckZ0 + 0.1; z < deckZ1; z += 0.1) {
+        dbox(0.025, postH * 0.75, 0.025, deckX0, 0.18 + postH * 0.4, z, fMat);
+        dbox(0.025, postH * 0.75, 0.025, deckX1, 0.18 + postH * 0.4, z, fMat);
+      }
+    }
+  }
+}
+
 function buildRoom() {
   const gen = ++_buildGen;   // any async GLB that captures this will bail if gen no longer matches
   markDirty(8);  // GLBs load async — keep rendering for a few frames
   _disposeBuildingGroup();
   while (buildingGroup.children.length) buildingGroup.remove(buildingGroup.children[0]);
+  _disposeGroup(roofGroup);
   // Clear wall mesh registry so interior-view opacity is applied to fresh meshes.
   Object.keys(wallMeshes).forEach(k => { wallMeshes[k] = []; });
   cornerPostMeshes.length = 0;
@@ -1236,12 +1533,22 @@ function buildRoom() {
 
   box(w+0.3,0.12,d+0.3,0,0.06,0,slabMat); box(w,0.06,d,0,0.15,0,floorMat);
 
-  // Interior floor surface — roughness varies by finish
-  const intFloorCol = INTERIOR_FLOOR_COLORS[state.interiorFloor] ?? 0xc8a87a;
-  const floorRoughMap = { oak:0.70, walnut:0.65, farm_oak:0.72, tiles:0.40, polished_concrete:0.30, gym_black:0.60, white_marble:0.25, rubber:0.85 };
-  const intFloorMat = _cachedMat(`intFloor_${state.interiorFloor}`, () =>
-    new THREE.MeshStandardMaterial({ color: intFloorCol, roughness: floorRoughMap[state.interiorFloor] ?? 0.70, metalness: 0.0 })
-  );
+  // Interior floor surface — textured when a texture is loaded, otherwise solid colour
+  const floorTexDef = FLOOR_TEXTURE_DEFS[state.interiorFloor];
+  const floorTex    = floorTexDef ? _floorTexCache[state.interiorFloor] : null;
+  let intFloorMat;
+  if (floorTex) {
+    // Update repeat to match current room size (1 texture tile = 1/tilesPerMeter metres)
+    floorTex.repeat.set(w * floorTexDef.tilesPerMeter, d * floorTexDef.tilesPerMeter);
+    floorTex.needsUpdate = true;
+    intFloorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: floorTexDef.roughness, metalness: 0.0 });
+  } else {
+    const intFloorCol = INTERIOR_FLOOR_COLORS[state.interiorFloor] ?? 0xc8a87a;
+    const floorRoughMap = { oak:0.70, walnut:0.65, farm_oak:0.72, tiles:0.40, polished_concrete:0.30, gym_black:0.60, white_marble:0.25, rubber:0.85 };
+    intFloorMat = _cachedMat(`intFloor_${state.interiorFloor}`, () =>
+      new THREE.MeshStandardMaterial({ color: intFloorCol, roughness: floorRoughMap[state.interiorFloor] ?? 0.70, metalness: 0.0 })
+    );
+  }
   box(w-0.02, 0.005, d-0.02, 0, 0.185, 0, intFloorMat);
 
   const wallOps = { front:[], back:[], left:[], right:[] };
@@ -1304,72 +1611,7 @@ function buildRoom() {
   });
 
   buildRoof(w,d,h,hw,hd);
-
-  if (state.extras.decking && state.deckingArea > 0) {
-    const da = state.deckingArea;
-    const dw = Math.min(w * 1.5, Math.sqrt(da * (w / Math.max(w, 3)) * 2));
-    const dd = da / dw;
-    const deckCol = { softwood: 0x7a5210, hardwood: 0x5a3a10, composite: 0x6b6055 }[state.deckingMaterial] || 0x7a5210;
-    const deckRough = { softwood: 0.82, hardwood: 0.78, composite: 0.65 }[state.deckingMaterial] ?? 0.82;
-    const dMat = new THREE.MeshStandardMaterial({ color: deckCol, roughness: deckRough, metalness: 0.0 });
-    const dBoardMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(deckCol).multiplyScalar(0.85), roughness: deckRough + 0.05, metalness: 0.0 });
-
-    // Deck platform
-    box(dw, 0.07, dd, 0, 0.18, hd + dd/2 + 0.02, dMat);
-    // Board lines
-    const plankW = 0.12, gap = 0.02;
-    for (let i = 0; i < Math.floor(dd / (plankW + gap)); i++) {
-      box(dw, 0.015, plankW, 0, 0.22, hd + i * (plankW + gap) + plankW/2 + 0.04, dBoardMat);
-    }
-
-    // Balustrade
-    const bType = state.deckingBalustrade;
-    if (bType && bType !== 'none') {
-      const postH = 0.9, railY = 0.18 + postH;
-      const fMat = getFrameMat();
-      const deckZ0 = hd + 0.02;
-      const deckZ1 = hd + dd + 0.02;
-      const deckX0 = -dw/2, deckX1 = dw/2;
-
-      // Posts at corners and every ~1m
-      const postPositions = [];
-      // Front edge (far from building)
-      for (let x = deckX0; x <= deckX1 + 0.01; x += Math.min(1.0, dw)) {
-        postPositions.push([x, deckZ1]);
-      }
-      // Side edges
-      for (let z = deckZ0 + 1.0; z < deckZ1; z += 1.0) {
-        postPositions.push([deckX0, z]);
-        postPositions.push([deckX1, z]);
-      }
-
-      postPositions.forEach(([px, pz]) => {
-        box(0.05, postH, 0.05, px, 0.18 + postH/2, pz, fMat);
-      });
-
-      // Top rails
-      box(dw, 0.04, 0.05, 0, railY, deckZ1, fMat); // front rail
-      box(0.05, 0.04, dd, deckX0, railY, hd + dd/2 + 0.02, fMat); // left rail
-      box(0.05, 0.04, dd, deckX1, railY, hd + dd/2 + 0.02, fMat); // right rail
-
-      // Fill between posts
-      if (bType === 'glass' || bType === 'frameless') {
-        const gMat = new THREE.MeshStandardMaterial({ color: 0xa8d8ea, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false });
-        box(dw, postH * 0.8, 0.01, 0, 0.18 + postH * 0.45, deckZ1, gMat); // front
-        box(0.01, postH * 0.8, dd, deckX0, 0.18 + postH * 0.45, hd + dd/2 + 0.02, gMat); // left
-        box(0.01, postH * 0.8, dd, deckX1, 0.18 + postH * 0.45, hd + dd/2 + 0.02, gMat); // right
-      } else if (bType === 'picket') {
-        // Pickets every 0.1m
-        for (let x = deckX0 + 0.1; x < deckX1; x += 0.1) {
-          box(0.025, postH * 0.75, 0.025, x, 0.18 + postH * 0.4, deckZ1, fMat);
-        }
-        for (let z = deckZ0 + 0.1; z < deckZ1; z += 0.1) {
-          box(0.025, postH * 0.75, 0.025, deckX0, 0.18 + postH * 0.4, z, fMat);
-          box(0.025, postH * 0.75, 0.025, deckX1, 0.18 + postH * 0.4, z, fMat);
-        }
-      }
-    }
-  }
+  buildDecking(w, hd);
 
   // Veranda / canopy — enabled when veranda qty > 0
   if ((state.roofPorchItems?.veranda ?? 0) > 0) {
@@ -1398,21 +1640,23 @@ function buildRoom() {
     vrp.rotation.x = 0.03; // slight tilt for drainage
     vrp.castShadow = true;
     vrp.userData.isRoof = true;
-    buildingGroup.add(vrp);
+    roofGroup.add(vrp);
   }
 
   rebuildHandles();
   rebuildWallArrows();
   rebuildEdgeHandles();
   buildPartitions();
+  buildPresetRooms();
+  buildFurniture();
   if (interiorViewMode) applyInteriorView();
   if (floorplanViewMode) {
-    buildingGroup.traverse(child => {
+    [buildingGroup, roofGroup].forEach(grp => grp.traverse(child => {
       if (child.isMesh && child.userData.isRoof) {
         child.userData._fpSavedVis = child.visible;
         child.visible = false;
       }
-    });
+    }));
     skyDome.visible = false;
   }
 }
@@ -1433,9 +1677,9 @@ function toggleInteriorView() {
 }
 
 function applyInteriorView() {
-  buildingGroup.traverse(child => {
+  [buildingGroup, roofGroup].forEach(grp => grp.traverse(child => {
     if (child.isMesh && (child.userData.isRoof || child.userData.isGutter)) child.visible = false;
-  });
+  }));
   // Wider FOV feels more natural inside a room — avoids the compressed
   // telephoto look and makes the space feel correctly proportioned.
   camera.fov = 20;
@@ -1447,9 +1691,9 @@ function applyInteriorView() {
 function restoreExteriorView() {
   // Reset cache so next interior view entry re-applies all ghost states cleanly
   for (const k of Object.keys(_prevGhosted)) _prevGhosted[k] = null;
-  buildingGroup.traverse(child => {
+  [buildingGroup, roofGroup].forEach(grp => grp.traverse(child => {
     if (child.isMesh && (child.userData.isRoof || child.userData.isGutter)) child.visible = true;
-  });
+  }));
   for (const meshes of Object.values(wallMeshes)) {
     for (const m of meshes) {
       if (!m.isMesh || !m.material) continue;
@@ -1588,21 +1832,18 @@ function ensureWallLabels() {
   if (wallLabels.width) return;
   const vp = document.querySelector('.viewport');
   if (!vp) return;
-  ['width','depth'].forEach(dim => {
+  ['width','depth','height'].forEach(dim => {
     const d = document.createElement('div');
     d.style.cssText = [
       'position:absolute', 'pointer-events:none',
-      'padding:3px 9px',
-      'background:rgba(20,20,20,0.78)',
       'color:#fff',
-      'border-radius:5px',
-      'font-size:12px',
-      'font-weight:600',
+      'font-size:11px',
+      'font-weight:500',
       'font-family:DM Sans,sans-serif',
       'white-space:nowrap',
-      'transform:translate(-50%,-50%)',
+      'letter-spacing:0.06em',
+      'text-shadow:0 1px 4px rgba(0,0,0,1),0 0 8px rgba(0,0,0,0.8)',
       'display:none',
-      'letter-spacing:0.03em',
     ].join(';');
     vp.appendChild(d);
     wallLabels[dim] = d;
@@ -1672,6 +1913,50 @@ function makeDimIndicator(length) {
   return g;
 }
 
+/**
+ * Build a vertical dimension indicator (standing upright along Y).
+ * Used for the building height annotation on the left-front edge.
+ */
+function makeDimIndicatorV(length) {
+  const g    = new THREE.Group();
+  const lw   = 0.04;
+  const capW = 0.35;
+  const arrH = 0.45;
+  const arrW = 0.22;
+  const half = length / 2;
+
+  // Centre shaft
+  const shaftGeo = new THREE.BoxGeometry(lw, Math.max(0.01, length - arrH * 2), lw);
+  g.add(new THREE.Mesh(shaftGeo, DIM_MAT));
+
+  // Arrowheads — triangles in XY plane, pointing inward
+  [{ side: -1, dir: 1 }, { side: 1, dir: -1 }].forEach(({ side, dir }) => {
+    const tip  = side * half;
+    const base = tip + dir * arrH;
+    const verts = new Float32Array([
+       0,         tip,  0,
+      -arrW / 2,  base, 0,
+       arrW / 2,  base, 0,
+    ]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.setIndex(side < 0 ? [0, 1, 2] : [0, 2, 1]);
+    geo.computeVertexNormals();
+    const mat = DIM_MAT.clone();
+    mat.side = THREE.DoubleSide;
+    g.add(new THREE.Mesh(geo, mat));
+  });
+
+  // Horizontal end-caps
+  [-half, half].forEach(y => {
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(capW, lw, lw), DIM_MAT);
+    cap.position.y = y;
+    g.add(cap);
+  });
+
+  return g;
+}
+
 function rebuildWallArrows() {
   while (wallArrowGroup.children.length) wallArrowGroup.remove(wallArrowGroup.children[0]);
   ensureWallLabels();
@@ -1697,6 +1982,263 @@ function rebuildWallArrows() {
   dLeft.rotation.y = Math.PI / 2;
   dLeft.position.set(-(hw + off), 0, 0);
   wallArrowGroup.add(dLeft);
+
+  // ── Height indicator — left-front corner ──
+  const wallH = state.height;
+  const hInd = makeDimIndicatorV(wallH);
+  hInd.position.set(-(hw + off), 0.18 + wallH / 2, hd);
+  wallArrowGroup.add(hInd);
+}
+
+// ─── FURNITURE ───────────────────────────────────────────────────────────────
+
+const FURNITURE_CATALOG = {
+  // ── Living ──────────────────────────────────────────────────────────────────
+  sofa_2:        { label: 'Sofa (2-seat)',    w: 1.56, d: 0.84, h: 0.64, color: 0x6B7B8D, category: 'Living',  model: 'assets/white_couch.glb'    },
+  sofa_3:        { label: 'Sofa (3-seat)',    w: 1.85, d: 0.90, h: 0.64, color: 0x6B7B8D, category: 'Living',  model: 'assets/couch4.glb'         },
+  corner_sofa:   { label: 'Corner Sofa',      w: 3.24, d: 2.56, h: 0.62, color: 0x6B7B8D, category: 'Living',  model: 'assets/corner_sofa.glb'    },
+  armchair:      { label: 'Armchair',         w: 0.92, d: 0.90, h: 0.62, color: 0x7B8D9A, category: 'Living',  model: 'assets/grey_armchair.glb'  },
+  coffee_table:  { label: 'Coffee Table',     w: 1.28, d: 1.28, h: 0.59, color: 0x8B6234, category: 'Living',  model: 'assets/circular_table.glb' },
+  tv_unit:       { label: 'TV Unit',          w: 1.31, d: 0.35, h: 0.59, color: 0x222222, category: 'Living',  model: 'assets/tv_unit.glb',        wallHug: true },
+  bench:         { label: 'Bench',            w: 1.57, d: 0.68, h: 0.88, color: 0x8B6914, category: 'Living',  model: 'assets/bench.glb'          },
+  poof:          { label: 'Poof / Ottoman',   w: 0.35, d: 0.35, h: 0.34, color: 0x7B8D9A, category: 'Living',  model: 'assets/poof.glb'           },
+  // ── Dining ──────────────────────────────────────────────────────────────────
+  dining_table:  { label: 'Dining Table',     w: 1.45, d: 0.84, h: 0.60, color: 0x8B6914, category: 'Dining', model: 'assets/table.glb'          },
+  dining_chair:  { label: 'Dining Chair',     w: 0.40, d: 0.46, h: 0.75, color: 0x555544, category: 'Dining', model: 'assets/dining_chair.glb'   },
+  stool:         { label: 'Stool',            w: 0.34, d: 0.34, h: 0.35, color: 0x8B6914, category: 'Dining', model: 'assets/stool.glb'          },
+  stool_fancy:   { label: 'Bar Stool',        w: 0.34, d: 0.34, h: 0.75, color: 0x8B6914, category: 'Dining', model: 'assets/stool_fancy.glb'    },
+  // ── Office ──────────────────────────────────────────────────────────────────
+  desk:          { label: 'Desk',             w: 1.33, d: 0.56, h: 1.02, color: 0xC8A878, category: 'Office', model: 'assets/computer_desk.glb',  wallHug: true },
+  office_chair:  { label: 'Office Chair',     w: 0.51, d: 0.60, h: 0.99, color: 0x333333, category: 'Office', model: 'assets/office_chair.glb'   },
+  bookshelf:     { label: 'Bookshelf',        w: 0.76, d: 0.37, h: 1.40, color: 0x7B5E3A, category: 'Office', model: 'assets/shelf_unit.glb',     wallHug: true },
+  water_cooler:  { label: 'Water Cooler',     w: 0.26, d: 0.26, h: 1.03, color: 0xCCDDEE, category: 'Office', model: 'assets/watercooler.glb'    },
+  // ── Bedroom ─────────────────────────────────────────────────────────────────
+  single_bed:    { label: 'Single Bed',       w: 0.90, d: 1.79, h: 0.50, color: 0xDDCCBB, category: 'Bedroom', model: 'assets/bed_single.glb'                },
+  double_bed:    { label: 'Double Bed',       w: 1.26, d: 1.50, h: 0.61, color: 0xDDCCBB, category: 'Bedroom', model: 'assets/bed_double.glb'                },
+  queen_bed:     { label: 'Queen Bed',        w: 2.44, d: 1.83, h: 0.72, color: 0xDDCCBB, category: 'Bedroom', model: 'assets/bed_queen.glb'                 },
+  bunk_bed:      { label: 'Bunk Bed',         w: 1.38, d: 0.82, h: 1.29, color: 0xDDCCBB, category: 'Bedroom', model: 'assets/bed_bunk.glb'                  },
+  wardrobe:      { label: 'Wardrobe',         w: 1.76, d: 0.39, h: 1.78, color: 0xA0936A, category: 'Bedroom', model: 'assets/cabinet_fancy.glb', wallHug: true },
+  bedside:       { label: 'Bedside Table',    w: 0.46, d: 0.45, h: 0.40, color: 0x8B6914, category: 'Bedroom', model: 'assets/side_table.glb'                },
+  // ── Bathroom ────────────────────────────────────────────────────────────────
+  toilet:        { label: 'Toilet',           w: 0.35, d: 0.60, h: 0.68, color: 0xF2F0EE, category: 'Bathroom', model: 'assets/toilet.glb',            wallHug: true, modelRotY: Math.PI / 2 },
+  bathtub:       { label: 'Bathtub',          w: 1.96, d: 0.93, h: 0.65, color: 0xF2F0EE, category: 'Bathroom', model: 'assets/bathtub.glb',           wallHug: true },
+  shower:        { label: 'Shower',           w: 0.99, d: 1.06, h: 2.00, color: 0xDDEEFF, category: 'Bathroom', model: 'assets/shower.glb',            wallHug: true, modelScale: 0.004910 },
+  basin:         { label: 'Basin',            w: 0.65, d: 0.64, h: 0.85, color: 0xF2F0EE, category: 'Bathroom', model: 'assets/wash_basin_stand.glb',  wallHug: true, modelScale: 0.001350 },
+  // ── Entertainment ───────────────────────────────────────────────────────────
+  pool_table:    { label: 'Pool Table',       w: 1.99, d: 1.17, h: 0.55, color: 0x2A6A2A, category: 'Entertainment', model: 'assets/pool_table.glb'     },
+  grand_piano:   { label: 'Grand Piano',      w: 1.40, d: 2.09, h: 1.45, color: 0x111111, category: 'Entertainment', model: 'assets/grand_piano.glb'    },
+  arcade_machine:{ label: 'Arcade Machine',   w: 0.70, d: 0.75, h: 1.78, color: 0x222244, category: 'Entertainment', model: 'assets/arcade_machine.glb' },
+  speaker:       { label: 'Speaker',          w: 0.27, d: 0.30, h: 0.44, color: 0x222222, category: 'Entertainment', model: 'assets/speaker.glb'        },
+  // ── Kitchen / Utility ───────────────────────────────────────────────────────
+  fridge:         { label: 'Fridge',          w: 0.58, d: 0.60, h: 1.61, color: 0xDDDDDD, category: 'Utility', model: 'assets/fridge.glb',         wallHug: true },
+  oven:           { label: 'Oven',            w: 0.52, d: 0.56, h: 0.66, color: 0x888888, category: 'Utility', model: 'assets/oven.glb',            wallHug: true },
+  microwave:      { label: 'Microwave',       w: 0.43, d: 0.34, h: 0.22, color: 0x888888, category: 'Utility', model: 'assets/microwave.glb',       wallHug: true },
+  washing_machine:{ label: 'Washing Machine', w: 0.50, d: 0.44, h: 0.72, color: 0xDDDDDD, category: 'Utility', model: 'assets/washingmachine.glb',  wallHug: true },
+  radiator:       { label: 'Radiator',        w: 1.42, d: 0.18, h: 0.87, color: 0xDDDDDD, category: 'Utility', model: 'assets/bedroom_heater_radiator.glb', wallHug: true },
+  // ── Misc ────────────────────────────────────────────────────────────────────
+  plant:         { label: 'Plant',            w: 0.57, d: 0.69, h: 1.36, color: 0x3A7A3A, category: 'Misc', model: 'assets/plant.glb'         },
+  table_lamp:    { label: 'Table Lamp',       w: 0.52, d: 0.52, h: 1.51, color: 0xDDCC88, category: 'Misc', model: 'assets/table_lamp.glb'    },
+  floor_lamp:    { label: 'Floor Lamp',       w: 0.59, d: 0.57, h: 1.55, color: 0xDDCC88, category: 'Misc', model: 'assets/tall_lamp.glb'     },
+  easel:         { label: 'Easel / Canvas',   w: 0.96, d: 0.57, h: 2.30, color: 0xC8A878, category: 'Misc', model: 'assets/easel_canvas.glb'  },
+  rug:           { label: 'Rug',              w: 1.50, d: 2.00, h: 0.02, color: 0xAA8855, category: 'Misc'                                    },
+};
+
+const furnitureMeshes = [];
+const furnitureGroups = {};   // id → THREE.Group, for __preset__ furniture
+let furnitureDragState = null;        // { id, groundAnchor }
+
+// Collect every snappable wall face in world space as { perpAxis:'x'|'z', pos }.
+// Includes exterior walls, partition walls, and preset room boundary walls.
+function _gatherWallFaces() {
+  const hw = state.width / 2, hd = state.depth / 2;
+  const faces = [
+    { perpAxis: 'x', pos: -hw }, { perpAxis: 'x', pos:  hw },
+    { perpAxis: 'z', pos: -hd }, { perpAxis: 'z', pos:  hd },
+  ];
+  state.partitions.forEach(p => {
+    // p.axis = axis wall runs ALONG; perpAxis is perpendicular
+    faces.push({ perpAxis: p.axis === 'x' ? 'z' : 'x', pos: p.pos });
+  });
+  state.presetRooms.forEach(r => {
+    const frame = _prFrame(r);
+    if (!frame) return;
+    const { alongAxis, wallPos, depthSign } = frame;
+    const innerCoord = wallPos + depthSign * r.depth;
+    if (alongAxis === 'x') {
+      faces.push({ perpAxis: 'z', pos: innerCoord });                  // inner wall
+      faces.push({ perpAxis: 'x', pos: r.offset - r.width / 2 });     // left side
+      faces.push({ perpAxis: 'x', pos: r.offset + r.width / 2 });     // right side
+    } else {
+      faces.push({ perpAxis: 'x', pos: innerCoord });                  // inner wall
+      faces.push({ perpAxis: 'z', pos: r.offset - r.width / 2 });     // left side
+      faces.push({ perpAxis: 'z', pos: r.offset + r.width / 2 });     // right side
+    }
+  });
+  return faces;
+}
+
+// Snap piece to the nearest wall face, returning { x, z, rotY }.
+// The cursor position (px, pz) determines which wall is nearest and which side to face.
+// fw = piece width (X extent at rotY=0), fd = piece depth (Z extent at rotY=0).
+// hw/hd = room half-extents used for lateral boundary clamping.
+function _snapToNearestWallFace(px, pz, fw, fd, wallFaces, hw, hd) {
+  const M = 0.02;
+  let nearestDist = Infinity, nearest = null;
+  wallFaces.forEach(w => {
+    const dist = w.perpAxis === 'x' ? Math.abs(px - w.pos) : Math.abs(pz - w.pos);
+    if (dist < nearestDist) { nearestDist = dist; nearest = w; }
+  });
+  if (nearest.perpAxis === 'x') {
+    const onRight = px >= nearest.pos;
+    return {
+      x: onRight ? nearest.pos + fd/2 + M : nearest.pos - fd/2 - M,
+      z: Math.max(-hd + fw/2 + M, Math.min(hd - fw/2 - M, pz)),
+      rotY: onRight ? Math.PI / 2 : -Math.PI / 2,
+    };
+  } else {
+    const onFront = pz >= nearest.pos;
+    return {
+      x: Math.max(-hw + fw/2 + M, Math.min(hw - fw/2 - M, px)),
+      z: onFront ? nearest.pos + fd/2 + M : nearest.pos - fd/2 - M,
+      rotY: onFront ? 0 : Math.PI,
+    };
+  }
+}
+
+// Rectangular snap for use inside a preset room's local space (4 walls only).
+function _wallHugSnapLocal(px, pz, fw, fd, hw, hd) {
+  const faces = [
+    { perpAxis: 'x', pos: -hw }, { perpAxis: 'x', pos: hw },
+    { perpAxis: 'z', pos: -hd }, { perpAxis: 'z', pos: hd },
+  ];
+  return _snapToNearestWallFace(px, pz, fw, fd, faces, hw, hd);
+}
+
+// ─── Furniture hover state ────────────────────────────────────────────────────
+let _hoveredFurnitureId = null;
+let _hoverBoxHelper = null;
+const _hoverMaterialBackups = [];   // [{mesh, mat}]
+
+function _setFurnitureHover(fid) {
+  if (fid === _hoveredFurnitureId) return;
+  // Restore originals
+  _hoverMaterialBackups.forEach(({ mesh, mat }) => { mesh.material = mat; });
+  _hoverMaterialBackups.length = 0;
+  if (_hoverBoxHelper) { buildingGroup.remove(_hoverBoxHelper); _hoverBoxHelper = null; }
+  _hoveredFurnitureId = fid;
+  if (fid != null) {
+    furnitureMeshes.filter(m => m.userData.furnitureId === fid).forEach(m => {
+      _hoverMaterialBackups.push({ mesh: m, mat: m.material });
+      const mat = m.material.clone();
+      if (mat.emissive) { mat.emissive.setHex(0x2244aa); mat.emissiveIntensity = 0.45; }
+      m.material = mat;
+    });
+    const grp = furnitureGroups[fid] || furnitureMeshes.find(m => m.userData.furnitureId === fid);
+    if (grp) { _hoverBoxHelper = new THREE.BoxHelper(grp, 0x4499ff); buildingGroup.add(_hoverBoxHelper); }
+  }
+  markDirty();
+}
+
+function buildFurniture() {
+  // Clear hover state (meshes/groups are about to be destroyed)
+  _hoverMaterialBackups.length = 0;
+  if (_hoverBoxHelper) { buildingGroup.remove(_hoverBoxHelper); _hoverBoxHelper = null; }
+  _hoveredFurnitureId = null;
+
+  // Remove preset groups
+  Object.values(furnitureGroups).forEach(g => buildingGroup.remove(g));
+  for (const k in furnitureGroups) delete furnitureGroups[k];
+
+  furnitureMeshes.forEach(m => {
+    buildingGroup.remove(m);
+    m.geometry?.dispose();
+    if (m.material && !Array.isArray(m.material)) m.material.dispose();
+  });
+  furnitureMeshes.length = 0;
+
+  const floorY = 0.18;
+  state.furniture.forEach(f => {
+    if (f.type === '__preset__') {
+      if (!f.dims) return;
+      // Normalise dims to {w,h,d} if stored as legacy array
+      if (Array.isArray(f.dims)) f.dims = { w: f.dims[0], h: f.dims[1], d: f.dims[2] };
+
+      if (f.model) {
+        // GLB model for this preset piece
+        const fid = f.id, gen = _buildGen;
+        loadModel(f.model).then(scene => {
+          if (_buildGen !== gen || !scene) return;
+          if (f.modelScale) scene.scale.setScalar(f.modelScale);
+          scene.rotation.y = f.modelRotY ?? 0;
+          const box = new THREE.Box3().setFromObject(scene);
+          const centre = new THREE.Vector3(); box.getCenter(centre);
+          scene.position.set(-centre.x, -box.min.y, -centre.z);
+          scene.traverse(child => { if (child.isMesh) { child.castShadow = true; child.userData.furnitureId = fid; furnitureMeshes.push(child); } });
+          const group = new THREE.Group();
+          group.position.set(f.x, floorY, f.z);
+          group.rotation.y = f.rotY ?? 0;
+          group.add(scene);
+          buildingGroup.add(group);
+          furnitureGroups[fid] = group;
+          markDirty();
+        });
+        return;
+      }
+
+      const group = new THREE.Group();
+      group.position.set(f.x, floorY, f.z);
+      group.rotation.y = f.rotY ?? 0;
+
+      (f.subParts || []).forEach(sp => {
+        const mat = new THREE.MeshStandardMaterial({ color: sp.color ?? 0xcccccc, roughness: sp.roughness ?? 0.65, metalness: 0.0 });
+        const geo = new THREE.BoxGeometry(sp.dims[0], sp.dims[1], sp.dims[2]);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(sp.pos[0], sp.pos[1], sp.pos[2]);
+        mesh.castShadow = true;
+        mesh.userData.furnitureId = f.id;
+        group.add(mesh);
+        furnitureMeshes.push(mesh);
+      });
+
+      buildingGroup.add(group);
+      furnitureGroups[f.id] = group;
+      return;
+    }
+    const def = FURNITURE_CATALOG[f.type];
+    if (!def) return;
+
+    if (def.model) {
+      const fid = f.id, gen = _buildGen;
+      loadModel(def.model).then(scene => {
+        if (_buildGen !== gen || !scene) return;
+        if (def.modelScale) scene.scale.setScalar(def.modelScale);
+        scene.rotation.y = def.modelRotY ?? 0;
+        const box = new THREE.Box3().setFromObject(scene);
+        const centre = new THREE.Vector3(); box.getCenter(centre);
+        scene.position.set(-centre.x, -box.min.y, -centre.z);
+        scene.traverse(child => { if (child.isMesh) { child.castShadow = true; child.userData.furnitureId = fid; furnitureMeshes.push(child); } });
+        const group = new THREE.Group();
+        group.position.set(f.x, floorY, f.z);
+        group.rotation.y = f.rotY ?? 0;
+        group.add(scene);
+        buildingGroup.add(group);
+        furnitureGroups[fid] = group;
+        markDirty();
+      });
+      return;
+    }
+
+    // Fallback: plain coloured box
+    const mat = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.65, metalness: 0.05 });
+    const geo = new THREE.BoxGeometry(def.w, def.h, def.d);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(f.x, floorY + def.h / 2, f.z);
+    mesh.rotation.y = f.rotY ?? 0;
+    mesh.castShadow = true;
+    mesh.userData.furnitureId = f.id;
+    buildingGroup.add(mesh);
+    furnitureMeshes.push(mesh);
+  });
 }
 
 // ─── INTERIOR PARTITIONS ─────────────────────────────────────────────────────
@@ -1712,24 +2254,155 @@ function buildPartitions() {
   partitionMeshes.length = 0;
 
   const floorY = 0.18, wallH = state.height;
-  const iwCol = INTERIOR_WALL_COLORS[state.interiorWalls] ?? 0xf5f5f5;
+
+  const DOOR_W = 0.9;   // interior door width (m)
+  const DOOR_H = 2.05;  // interior door height (m)
+
+  // Pre-compute preset room bounding boxes for overlap clipping
+  const hw0 = state.width / 2, hd0 = state.depth / 2;
+  const _roomBBoxes = state.presetRooms.map(r => {
+    const halfW = r.width / 2;
+    switch (r.wall) {
+      case 'back':  return { xMin: r.offset - halfW, xMax: r.offset + halfW, zMin: -hd0,          zMax: -hd0 + r.depth };
+      case 'front': return { xMin: r.offset - halfW, xMax: r.offset + halfW, zMin:  hd0 - r.depth, zMax:  hd0 };
+      case 'left':  return { xMin: -hw0,              xMax: -hw0 + r.depth,   zMin: r.offset - halfW, zMax: r.offset + halfW };
+      case 'right': return { xMin:  hw0 - r.depth,    xMax:  hw0,             zMin: r.offset - halfW, zMax: r.offset + halfW };
+      default: return null;
+    }
+  }).filter(Boolean);
 
   state.partitions.forEach(p => {
-    const len = p.end - p.start;
-    const W = p.axis === 'x' ? len : TK;
-    const D = p.axis === 'x' ? TK  : len;
-    const cx = p.axis === 'x' ? (p.start + p.end) / 2 : p.pos;
-    const cz = p.axis === 'x' ? p.pos : (p.start + p.end) / 2;
-    const mat = new THREE.MeshLambertMaterial({ color: iwCol, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(W, wallH, D), mat);
-    mesh.position.set(cx, floorY + wallH / 2, cz);
-    mesh.castShadow = mesh.receiveShadow = true;
-    mesh.userData.partitionId = p.id;
-    buildingGroup.add(mesh);
-    partitionMeshes.push({ id: p.id, mesh });
+    // Trim rendered ends that abut an exterior wall
+    const hw = state.width / 2, hd = state.depth / 2;
+    const wallLimit = p.axis === 'x' ? hw : hd;
+    const trimStart = Math.abs(p.start + wallLimit) < 0.01 ? TK / 2 : 0;
+    const trimEnd   = Math.abs(p.end   - wallLimit) < 0.01 ? TK / 2 : 0;
+    const rStart = p.start + trimStart;
+    const rEnd   = p.end   - trimEnd;
+    if (rEnd - rStart <= 0) return;
+
+    // Compute blocked ranges — doors AND preset-room footprints
+    const doors = (p.doors || []).map(d => ({
+      lo: d.offset - DOOR_W / 2,
+      hi: d.offset + DOOR_W / 2,
+      isDoor: true,
+      offset: d.offset,
+    }));
+
+    // Preset room blocked zones: where the partition line passes through a room's interior
+    const roomBlocks = _roomBBoxes.map(bb => {
+      if (p.axis === 'x') {
+        // Partition runs along X at z=p.pos — blocked in X range where room footprint covers it
+        if (p.pos > bb.zMin && p.pos < bb.zMax) return { lo: bb.xMin, hi: bb.xMax, isDoor: false };
+      } else {
+        // Partition runs along Z at x=p.pos
+        if (p.pos > bb.xMin && p.pos < bb.xMax) return { lo: bb.zMin, hi: bb.zMax, isDoor: false };
+      }
+      return null;
+    }).filter(Boolean);
+
+    // Merge all blocked ranges and sort by lo
+    const allBlocks = [...doors, ...roomBlocks].sort((a, b) => a.lo - b.lo);
+
+    // Slice the wall into segments around each blocked zone
+    const segments = [];
+    let cursor = rStart;
+    allBlocks.forEach(({ lo, hi, isDoor }) => {
+      const segStart = cursor;
+      const segEnd   = Math.max(cursor, Math.min(lo, rEnd));
+      if (segEnd - segStart > 0.01) segments.push({ start: segStart, end: segEnd, isDoor: false });
+      if (hi > rStart && lo < rEnd) {
+        if (isDoor) segments.push({ start: Math.max(lo, rStart), end: Math.min(hi, rEnd), isDoor: true, offset: lo + (hi - lo) / 2 });
+        // Room blocks are simply skipped — no geometry rendered in that zone
+      }
+      cursor = Math.min(Math.max(hi, cursor), rEnd);
+    });
+    if (rEnd - cursor > 0.01) segments.push({ start: cursor, end: rEnd, isDoor: false });
+
+    const frameMat = _cachedMat('partFrame', () =>
+      new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4, metalness: 0.5 })
+    );
+    const doorLeafMat = _cachedMat('partDoorLeaf', () =>
+      new THREE.MeshStandardMaterial({ color: 0xf0ede8, roughness: 0.6, metalness: 0.0 })
+    );
+
+    segments.forEach(seg => {
+      const len = seg.end - seg.start;
+      if (len <= 0) return;
+      const W = p.axis === 'x' ? len : TK;
+      const D = p.axis === 'x' ? TK  : len;
+      const midAlongWall = (seg.start + seg.end) / 2;
+      const cx = p.axis === 'x' ? midAlongWall : p.pos;
+      const cz = p.axis === 'x' ? p.pos : midAlongWall;
+
+      if (!seg.isDoor) {
+        // Normal wall segment
+        const mat = makeIwMat(state.interiorWalls); mat.side = THREE.DoubleSide;
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(W, wallH, D), mat);
+        mesh.position.set(cx, floorY + wallH / 2, cz);
+        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.userData.partitionId = p.id;
+        buildingGroup.add(mesh);
+        partitionMeshes.push({ id: p.id, mesh });
+      } else {
+        // Door gap — head panel above, frame sides, swinging leaf placeholder
+        const headH = wallH - DOOR_H;
+
+        // Head panel (wall above door)
+        if (headH > 0.02) {
+          const mat = makeIwMat(state.interiorWalls); mat.side = THREE.DoubleSide;
+          const hm = new THREE.Mesh(new THREE.BoxGeometry(W, headH, D), mat);
+          hm.position.set(cx, floorY + DOOR_H + headH / 2, cz);
+          hm.castShadow = true; hm.userData.partitionId = p.id;
+          buildingGroup.add(hm); partitionMeshes.push({ id: p.id, mesh: hm });
+        }
+
+        // Door frame — two side jambs + head
+        const jW = 0.06, jD = TK + 0.02;
+        const jH  = DOOR_H + 0.04;
+        // Side jambs
+        [[seg.start - jW / 2, seg.start + jW / 2], [seg.end - jW / 2, seg.end + jW / 2]].forEach(([lo2, hi2]) => {
+          const jCx = p.axis === 'x' ? (lo2 + hi2) / 2 : p.pos;
+          const jCz = p.axis === 'x' ? p.pos : (lo2 + hi2) / 2;
+          const jm = new THREE.Mesh(new THREE.BoxGeometry(
+            p.axis === 'x' ? jW : jD,
+            jH,
+            p.axis === 'x' ? jD : jW,
+          ), frameMat);
+          jm.position.set(jCx, floorY + jH / 2, jCz);
+          buildingGroup.add(jm); partitionMeshes.push({ id: p.id, mesh: jm });
+        });
+        // Head jamb
+        const headJm = new THREE.Mesh(new THREE.BoxGeometry(W + jW * 2, jW, jD), frameMat);
+        headJm.position.set(cx, floorY + DOOR_H + jW / 2, cz);
+        buildingGroup.add(headJm); partitionMeshes.push({ id: p.id, mesh: headJm });
+
+        // Door leaf (placeholder — flat panel, hinged at start side, open ~30°)
+        const leafGeo = new THREE.BoxGeometry(DOOR_W - 0.02, DOOR_H - 0.04, 0.04);
+        const leaf = new THREE.Mesh(leafGeo, doorLeafMat);
+        // Pivot at hinge edge — offset so rotation works from hinge
+        const pivotCx = p.axis === 'x' ? seg.start : p.pos;
+        const pivotCz = p.axis === 'x' ? p.pos : seg.start;
+        const pivot = new THREE.Group();
+        pivot.position.set(pivotCx, floorY + DOOR_H / 2, pivotCz);
+        const openAngle = 30 * Math.PI / 180;
+        if (p.axis === 'x') {
+          leaf.position.set(DOOR_W / 2, 0, 0);
+          pivot.rotation.y = -openAngle;
+        } else {
+          leaf.position.set(0, 0, DOOR_W / 2);
+          pivot.rotation.y = Math.PI / 2 - openAngle;
+        }
+        pivot.add(leaf);
+        pivot.userData.partitionId = p.id;
+        buildingGroup.add(pivot);
+        partitionMeshes.push({ id: p.id, mesh: pivot });
+      }
+    });
   });
 
   rebuildPartitionHandles();
+  if (typeof rebuildInteriorDoorHandles === 'function') rebuildInteriorDoorHandles();
 }
 
 const PARTITION_MOVE_MAT = new THREE.MeshStandardMaterial({
@@ -1811,22 +2484,495 @@ function raycastPartitionHandle(e) {
   return hits[0].object.material.opacity > 0.05 ? hits[0].object : null;
 }
 
+// ─── PRESET ROOMS ────────────────────────────────────────────────────────────
+
+const PR_MIN_W = 1.2;   // minimum room width (m)
+const PR_MIN_D = 1.0;   // minimum room depth (m)
+
+// Materials for preset room handles (created once)
+const PR_MOVE_MAT  = new THREE.MeshStandardMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0, roughness: 0.3, metalness: 0.1, depthWrite: false });
+const PR_SIDE_MAT  = new THREE.MeshStandardMaterial({ color: 0xf59e0b, transparent: true, opacity: 0, roughness: 0.3, metalness: 0.1, depthWrite: false });
+const PR_DEPTH_MAT = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0, roughness: 0.3, metalness: 0.1, depthWrite: false });
+const _PR_GEO_MOVE  = new THREE.CylinderGeometry(0.20, 0.20, 0.06, 20);
+const _PR_GEO_SIDE  = new THREE.CylinderGeometry(0.14, 0.14, 0.06, 16);
+const _PR_GEO_DEPTH = new THREE.CylinderGeometry(0.16, 0.16, 0.06, 16);
+
+const presetRoomHandles = [];  // { id, role, mesh }
+
+// Returns { wallPos, alongAxis:'x'|'z', depthSign, limit }
+// wallPos: world coordinate of the exterior wall face
+// alongAxis: 'x' means room runs in X direction; 'z' means runs in Z
+// depthSign: +1 or -1 → which direction depth goes into the building
+function _prFrame(r) {
+  const hw = state.width / 2, hd = state.depth / 2;
+  switch (r.wall) {
+    case 'back':  return { wallPos: -hd, alongAxis: 'x', depthSign:  1, limit: hw };
+    case 'front': return { wallPos:  hd, alongAxis: 'x', depthSign: -1, limit: hw };
+    case 'left':  return { wallPos: -hw, alongAxis: 'z', depthSign:  1, limit: hd };
+    case 'right': return { wallPos:  hw, alongAxis: 'z', depthSign: -1, limit: hd };
+  }
+}
+
+// Furniture definition in local room space.
+// Local space: origin at room centre, +X = along wall, +Z = toward interior.
+// Returns array of LOGICAL PIECES — each piece has:
+//   { label, localX, localZ, dims:{w,h,d}, parts:[{dims:[W,H,D], pos:[dx,dy,dz], color, roughness}] }
+// localX/localZ: piece centre in room-local space.
+// parts[].pos: offset from piece centre (x,z) with y = height from floor.
+function _prFurnitureDefs(type, width, depth) {
+  const hw = width / 2, hd = depth / 2;
+  const C = 0.13;  // clearance from wall face
+
+  switch (type) {
+    case 'bathroom': {
+      // Shower: back-left corner, facing door
+      const shX  = -hw + C + 0.99 / 2;
+      const shZ  = -hd + C + 1.06 / 2;
+      // Toilet: back-right corner — modelRotY=π/2 swaps visual w/d, so offset by d/2 from right wall
+      const toX  =  hw - C - 0.60 / 2;
+      const toZ  = -hd + C + 0.35 / 2;
+      // Basin: right wall, forward of toilet (rotY=-π/2 → back against right wall)
+      const basX =  hw - C - 0.64 / 2;
+      const basZ =  0.3;
+      return [
+        { label:'Shower', localX:shX,  localZ:shZ,  localRotY:0,           modelRotY:0,         modelScale:0.004910, dims:{w:0.99,h:2.00,d:1.06}, model:'assets/shower.glb'          },
+        { label:'Toilet', localX:toX,  localZ:toZ,  localRotY:0,           modelRotY:Math.PI/2,                      dims:{w:0.35,h:0.68,d:0.60}, model:'assets/toilet.glb'          },
+        { label:'Basin',  localX:basX, localZ:basZ, localRotY:-Math.PI/2,  modelRotY:0,         modelScale:0.001350, dims:{w:0.65,h:0.85,d:0.64}, model:'assets/wash_basin_stand.glb'},
+      ];
+    }
+    case 'bedroom': {
+      // Use double bed if room is wide enough, single otherwise
+      const useDbl = width >= 2.5;
+      const bedW   = useDbl ? 1.26 : 0.90;
+      const bedD   = useDbl ? 1.50 : 1.79;
+      // Bed: centred, against back wall
+      const bedZ   = -hd + C + bedD / 2;
+      // Bedside tables: tight to each side of bed
+      const bsX    = bedW / 2 + 0.05 + 0.46 / 2;
+      // Wardrobe: front wall, right side (leaves left side clear for door)
+      const wardX  =  hw - C - 1.76 / 2;
+      const wardZ  =  hd - C - 0.39 / 2;
+      // Dresser: left wall, middle of room (rotY=π/2 → back against left wall)
+      const dresX  = -hw + C + 0.52 / 2;
+      const dresZ  =  0.2;
+      return [
+        { label:'Bed',       localX:0,      localZ:bedZ,  localRotY:0,          dims:{w:bedW, h:useDbl?0.61:0.50, d:bedD}, model:useDbl?'assets/bed_double.glb':'assets/bed_single.glb' },
+        { label:'Bedside L', localX:-bsX,   localZ:bedZ,  localRotY:0,          dims:{w:0.46,h:0.40,d:0.45}, model:'assets/side_table.glb'    },
+        { label:'Bedside R', localX: bsX,   localZ:bedZ,  localRotY:0,          dims:{w:0.46,h:0.40,d:0.45}, model:'assets/side_table.glb'    },
+        { label:'Wardrobe',  localX:wardX,  localZ:wardZ, localRotY:Math.PI,    dims:{w:1.76,h:1.78,d:0.39}, model:'assets/cabinet_fancy.glb' },
+        { label:'Dresser',   localX:dresX,  localZ:dresZ, localRotY:Math.PI/2,  dims:{w:0.46,h:0.89,d:0.52}, model:'assets/cabinet_brown.glb' },
+      ];
+    }
+    case 'office': {
+      // Desk: back-right corner, facing into room
+      const deskX  =  hw - C - 1.33 / 2;
+      const deskZ  = -hd + C + 0.56 / 2;
+      // Chair: pulled out from desk so it can be sat in
+      const chairZ =  deskZ + 0.56 / 2 + 0.20 + 0.60 / 2;
+      // Bookshelf: left wall, back half (rotY=π/2 → back against left wall)
+      const shelfX = -hw + C + 0.37 / 2;
+      const shelfZ = -hd + C + 0.76 / 2;
+      // Water cooler: front-left corner, out of the way
+      const wcX    = -hw + C + 0.26 / 2;
+      const wcZ    =  hd - C - 0.26 / 2;
+      return [
+        { label:'Desk',         localX:deskX,  localZ:deskZ,  localRotY:0,          dims:{w:1.33,h:1.02,d:0.56}, model:'assets/computer_desk.glb' },
+        { label:'Office Chair', localX:deskX,  localZ:chairZ, localRotY:0,          dims:{w:0.51,h:0.99,d:0.60}, model:'assets/office_chair.glb'  },
+        { label:'Bookshelf',    localX:shelfX, localZ:shelfZ, localRotY:Math.PI/2,  dims:{w:0.76,h:1.40,d:0.37}, model:'assets/shelf_unit.glb'    },
+        { label:'Water Cooler', localX:wcX,    localZ:wcZ,    localRotY:0,          dims:{w:0.26,h:1.03,d:0.26}, model:'assets/watercooler.glb'   },
+      ];
+    }
+    default: return [];
+  }
+}
+
+const presetRoomMeshes = [];   // { id, meshes: [mesh, ...] }
+
+// Populate state.furniture with __preset__ entries for room r (if not already done).
+// groupX/groupZ/groupRotY: world transform of the room's local coordinate origin.
+function _syncPresetRoomFurniture(r, groupX, groupZ, groupRotY) {
+  const cos = Math.cos(groupRotY), sin = Math.sin(groupRotY);
+  const existing = state.furniture.filter(f => f.presetRoomId === r.id);
+  if (existing.length > 0) {
+    // Room moved — recalculate world position from stored local coords
+    existing.forEach(f => {
+      f.x    = groupX + cos * f.localX + sin * f.localZ;
+      f.z    = groupZ - sin * f.localX + cos * f.localZ;
+      f.rotY = groupRotY + (f.localRotY ?? 0);
+    });
+    return;
+  }
+  // First time — create one state entry per logical furniture piece
+  const defs = _prFurnitureDefs(r.type, r.width, r.depth);
+  defs.forEach(def => {
+    const lx = def.localX, lz = def.localZ;
+    const lr = def.localRotY ?? 0;
+    state.furniture.push({
+      id: state.nextFurnitureId++,
+      type: '__preset__',
+      x: groupX + cos * lx + sin * lz,
+      z: groupZ - sin * lx + cos * lz,
+      rotY: groupRotY + lr,
+      localX: lx, localZ: lz,
+      localRotY: lr,
+      dims: def.dims,
+      model: def.model,
+      modelRotY: def.modelRotY ?? 0,
+      modelScale: def.modelScale,
+      label: def.label,
+      presetRoomId: r.id,
+    });
+  });
+}
+
+function buildPresetRooms() {
+  // Dispose old preset room meshes
+  presetRoomMeshes.forEach(({ meshes }) => {
+    meshes.forEach(m => {
+      buildingGroup.remove(m);
+      if (m.geometry) m.geometry.dispose();
+      if (m.material && !Array.isArray(m.material)) m.material.dispose();
+    });
+  });
+  presetRoomMeshes.length = 0;
+
+  const wallH = state.height, floorY = 0.18;
+
+  state.presetRooms.forEach(r => {
+    const meshes = [];
+    const frame = _prFrame(r);
+    if (!frame) return;
+    const { wallPos, alongAxis, depthSign } = frame;
+
+    // Clamp room so it never extends beyond the exterior walls
+    const perpLimit = alongAxis === 'x' ? state.width / 2 : state.depth / 2;
+    const depthLimit = (alongAxis === 'x' ? state.depth / 2 : state.width / 2) - TK;
+    const halfW = r.width / 2;
+    r.offset = Math.max(-perpLimit + halfW + TK, Math.min(perpLimit - halfW - TK, r.offset));
+    r.depth  = Math.max(0.5, Math.min(r.depth, depthLimit));
+
+    const innerWallCoord = wallPos + depthSign * r.depth;
+    const sideLen = Math.max(0.05, r.depth - TK);
+    const sideCentre = wallPos + depthSign * (TK / 2 + sideLen / 2);
+    const cy = floorY + wallH / 2;
+    const h = wallH;
+
+    function addWallBox(W, H, D, cx, cz, userData) {
+      const mat = makeIwMat(state.interiorWalls); mat.side = THREE.DoubleSide;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), mat);
+      mesh.position.set(cx, cy, cz);
+      mesh.castShadow = mesh.receiveShadow = true;
+      Object.assign(mesh.userData, userData, { presetRoomId: r.id });
+      buildingGroup.add(mesh);
+      meshes.push(mesh);
+    }
+
+    // Side wall merging: if a room edge is within TK of a perpendicular exterior wall,
+    // that exterior wall already closes the room — don't render a redundant side wall.
+    const leftEdge  = r.offset - halfW;
+    const rightEdge = r.offset + halfW;
+    const mergeL = Math.abs(leftEdge  + perpLimit) < TK * 1.1;
+    const mergeR = Math.abs(rightEdge - perpLimit) < TK * 1.1;
+
+    // Inner wall with door — door centre can be offset via r.doorOffset
+    const PR_DOOR_W = 0.9;
+    const PR_DOOR_H = 2.05;
+    const doorCentre = r.offset + (r.doorOffset || 0);
+    // Clamp so door stays fully within wall extents (halfW declared above)
+    const doorCentreClamped = Math.max(r.offset - halfW + PR_DOOR_W / 2 + 0.06,
+                                       Math.min(r.offset + halfW - PR_DOOR_W / 2 - 0.06, doorCentre));
+    const doorLo = doorCentreClamped - PR_DOOR_W / 2;
+    const doorHi = doorCentreClamped + PR_DOOR_W / 2;
+    const wallLeft  = r.offset - halfW - TK / 2;
+    const wallRight = r.offset + halfW + TK / 2;
+
+    function addInnerWallWithDoor(isX) {
+      // Wall material & frame/leaf materials (reuse partition style)
+      const wMat = makeIwMat(state.interiorWalls); wMat.side = THREE.DoubleSide;
+      const fMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4, metalness: 0.5 });
+      const lMat = new THREE.MeshStandardMaterial({ color: 0xf0ede8, roughness: 0.6 });
+      const headH = Math.max(0, wallH - PR_DOOR_H);
+
+      // Two wall segments either side of door
+      [[wallLeft, doorLo], [doorHi, wallRight]].forEach(([lo, hi]) => {
+        const len = hi - lo;
+        if (len < 0.01) return;
+        const cx = isX ? (lo + hi) / 2 : innerWallCoord;
+        const cz = isX ? innerWallCoord : (lo + hi) / 2;
+        const W  = isX ? len : TK;
+        const D  = isX ? TK  : len;
+        const m  = new THREE.Mesh(new THREE.BoxGeometry(W, wallH, D), wMat.clone());
+        m.position.set(cx, floorY + wallH / 2, cz);
+        m.castShadow = m.receiveShadow = true;
+        Object.assign(m.userData, { isPresetInner: true, presetRoomId: r.id });
+        buildingGroup.add(m); meshes.push(m);
+      });
+
+      // Head panel above door opening
+      if (headH > 0.02) {
+        const cx = isX ? doorCentreClamped : innerWallCoord;
+        const cz = isX ? innerWallCoord : doorCentreClamped;
+        const W  = isX ? PR_DOOR_W : TK;
+        const D  = isX ? TK : PR_DOOR_W;
+        const hm = new THREE.Mesh(new THREE.BoxGeometry(W, headH, D), wMat.clone());
+        hm.position.set(cx, floorY + PR_DOOR_H + headH / 2, cz);
+        hm.castShadow = true;
+        Object.assign(hm.userData, { isPresetInner: true, presetRoomId: r.id });
+        buildingGroup.add(hm); meshes.push(hm);
+      }
+
+      // Door frame jambs
+      const jW = 0.06, jD = TK + 0.02, jH = PR_DOOR_H + 0.04;
+      [doorLo, doorHi].forEach(edge => {
+        const cx = isX ? edge : innerWallCoord;
+        const cz = isX ? innerWallCoord : edge;
+        const jm = new THREE.Mesh(new THREE.BoxGeometry(
+          isX ? jW : jD, jH, isX ? jD : jW,
+        ), fMat);
+        jm.position.set(cx, floorY + jH / 2, cz);
+        buildingGroup.add(jm); meshes.push(jm);
+      });
+      // Head jamb
+      const hcx = isX ? doorCentreClamped : innerWallCoord;
+      const hcz = isX ? innerWallCoord : doorCentreClamped;
+      const hjm = new THREE.Mesh(new THREE.BoxGeometry(
+        isX ? PR_DOOR_W + jW * 2 : jD, jW, isX ? jD : PR_DOOR_W + jW * 2,
+      ), fMat);
+      hjm.position.set(hcx, floorY + PR_DOOR_H + jW / 2, hcz);
+      buildingGroup.add(hjm); meshes.push(hjm);
+
+      // Door leaf (hinged at doorLo side, open ~30° into room)
+      const leafGeo = new THREE.BoxGeometry(
+        isX ? PR_DOOR_W - 0.02 : 0.04,
+        PR_DOOR_H - 0.04,
+        isX ? 0.04 : PR_DOOR_W - 0.02,
+      );
+      const leaf = new THREE.Mesh(leafGeo, lMat);
+      const pivot = new THREE.Group();
+      const pcx = isX ? doorLo : innerWallCoord;
+      const pcz = isX ? innerWallCoord : doorLo;
+      pivot.position.set(pcx, floorY + PR_DOOR_H / 2, pcz);
+      const openAngle = 30 * Math.PI / 180;
+      if (isX) {
+        leaf.position.set(PR_DOOR_W / 2, 0, 0);
+        pivot.rotation.y = -openAngle;
+      } else {
+        leaf.position.set(0, 0, PR_DOOR_W / 2);
+        pivot.rotation.y = Math.PI / 2 - openAngle;
+      }
+      pivot.add(leaf);
+      Object.assign(pivot.userData, { isPresetInner: true, presetRoomId: r.id });
+      buildingGroup.add(pivot); meshes.push(pivot);
+    }
+
+    if (alongAxis === 'x') {
+      if (!mergeL) addWallBox(TK, h, sideLen, leftEdge,  sideCentre, { isPresetSideL: true });
+      if (!mergeR) addWallBox(TK, h, sideLen, rightEdge, sideCentre, { isPresetSideR: true });
+      addInnerWallWithDoor(true);
+    } else {
+      if (!mergeL) addWallBox(sideLen, h, TK, sideCentre, leftEdge,  { isPresetSideL: true });
+      if (!mergeR) addWallBox(sideLen, h, TK, sideCentre, rightEdge, { isPresetSideR: true });
+      addInnerWallWithDoor(false);
+    }
+
+    // ── Furniture ── (synced into state.furniture as __preset__ entries)
+    let groupX, groupZ, groupRotY;
+    if (alongAxis === 'x') {
+      groupX = r.offset;
+      groupZ = wallPos + depthSign * r.depth / 2;
+      groupRotY = depthSign === 1 ? 0 : Math.PI;
+    } else {
+      groupX = wallPos + depthSign * r.depth / 2;
+      groupZ = r.offset;
+      groupRotY = depthSign === 1 ? Math.PI / 2 : -Math.PI / 2;
+    }
+    _syncPresetRoomFurniture(r, groupX, groupZ, groupRotY);
+
+    presetRoomMeshes.push({ id: r.id, meshes });
+  });
+
+  rebuildPresetRoomHandles();
+  rebuildInteriorDoorHandles();
+
+  // Update list UI
+  const listEl = document.getElementById('presetRoomsList');
+  if (listEl) {
+    if (state.presetRooms.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:2px 0">No preset rooms added</div>';
+    } else {
+      listEl.innerHTML = state.presetRooms.map(r =>
+        `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <span>${r.type.charAt(0).toUpperCase()+r.type.slice(1)} · ${r.wall} wall · ${r.width.toFixed(1)}m×${r.depth.toFixed(1)}m</span>
+          <button onclick="state.furniture=state.furniture.filter(f=>f.presetRoomId!==${r.id});state.presetRooms=state.presetRooms.filter(x=>x.id!==${r.id});stateHistory.push();buildRoom()" style="border:none;background:none;color:var(--warn);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+        </div>`
+      ).join('');
+    }
+  }
+}
+
+function rebuildPresetRoomHandles() {
+  presetRoomHandles.forEach(h => { if (h.mesh.material) h.mesh.material.dispose(); });
+  while (presetRoomHandleGroup.children.length) presetRoomHandleGroup.remove(presetRoomHandleGroup.children[0]);
+  presetRoomHandles.length = 0;
+
+  const topH = 0.18 + state.height + 0.08;
+
+  state.presetRooms.forEach(r => {
+    const frame = _prFrame(r);
+    if (!frame) return;
+    const { wallPos, alongAxis, depthSign } = frame;
+    const halfW = r.width / 2;
+    const innerCoord = wallPos + depthSign * r.depth;
+
+    // move: inner wall centre (offset only)
+    // depth: room interior centre (depth only — visually sits inside the room)
+    // sideL/sideR: inner wall ends (width)
+    let iCx, iCz, dCx, dCz, slCx, slCz, srCx, srCz;
+    if (alongAxis === 'x') {
+      iCx  = r.offset;         iCz  = innerCoord;
+      dCx  = r.offset;         dCz  = wallPos + depthSign * r.depth / 2;
+      slCx = r.offset - halfW; slCz = innerCoord;
+      srCx = r.offset + halfW; srCz = innerCoord;
+    } else {
+      iCx  = innerCoord;       iCz  = r.offset;
+      dCx  = wallPos + depthSign * r.depth / 2; dCz = r.offset;
+      slCx = innerCoord;       slCz = r.offset - halfW;
+      srCx = innerCoord;       srCz = r.offset + halfW;
+    }
+
+    [
+      { role: 'move',  mat: PR_MOVE_MAT,  geo: _PR_GEO_MOVE,  cx: iCx,  cz: iCz  },
+      { role: 'depth', mat: PR_DEPTH_MAT, geo: _PR_GEO_DEPTH, cx: dCx,  cz: dCz  },
+      { role: 'sideL', mat: PR_SIDE_MAT,  geo: _PR_GEO_SIDE,  cx: slCx, cz: slCz },
+      { role: 'sideR', mat: PR_SIDE_MAT,  geo: _PR_GEO_SIDE,  cx: srCx, cz: srCz },
+    ].forEach(({ role, mat, geo, cx, cz }) => {
+      const mesh = new THREE.Mesh(geo, mat.clone());
+      mesh.position.set(cx, topH, cz);
+      mesh.userData.presetRoomId = r.id;
+      mesh.userData.presetRoomRole = role;
+      presetRoomHandleGroup.add(mesh);
+      presetRoomHandles.push({ id: r.id, role, mesh });
+    });
+  });
+}
+
+// ─── INTERIOR DOOR HANDLES ───────────────────────────────────────────────────
+// Small disc handles placed at the centre-top of each interior door opening.
+// Dragging one slides the door along its wall.
+
+const _DOOR_HANDLE_GEO = new THREE.CylinderGeometry(0.14, 0.14, 0.05, 16);
+const _DOOR_HANDLE_MAT = new THREE.MeshStandardMaterial({ color: 0x22c55e, transparent: true, opacity: 0, roughness: 0.3, metalness: 0.2, depthWrite: false });
+
+const interiorDoorHandles = [];  // { type:'partition'|'preset', partitionId?, doorIndex?, presetRoomId?, mesh }
+let   interiorDoorDragState = null; // { type, partitionId?, doorIndex?, presetRoomId?, axis, groundAnchorAlong }
+
+function rebuildInteriorDoorHandles() {
+  interiorDoorHandles.forEach(h => { if (h.mesh.material) h.mesh.material.dispose(); });
+  while (interiorDoorHandleGroup.children.length) interiorDoorHandleGroup.remove(interiorDoorHandleGroup.children[0]);
+  interiorDoorHandles.length = 0;
+
+  const floorY = 0.18;
+  const DOOR_H = 2.05;
+  const handleY = floorY + DOOR_H + 0.14;  // just above door head
+
+  // Partition wall doors
+  state.partitions.forEach(p => {
+    (p.doors || []).forEach((d, i) => {
+      const doorCx = p.axis === 'x' ? p.start + d.offset : p.pos;
+      const doorCz = p.axis === 'x' ? p.pos : p.start + d.offset;
+      const mesh = new THREE.Mesh(_DOOR_HANDLE_GEO, _DOOR_HANDLE_MAT.clone());
+      mesh.position.set(doorCx, handleY, doorCz);
+      mesh.userData.interiorDoor = true;
+      mesh.userData.doorType = 'partition';
+      mesh.userData.partitionId = p.id;
+      mesh.userData.doorIndex = i;
+      interiorDoorHandleGroup.add(mesh);
+      interiorDoorHandles.push({ type: 'partition', partitionId: p.id, doorIndex: i, mesh });
+    });
+  });
+
+  // Preset room inner wall doors
+  state.presetRooms.forEach(r => {
+    const frame = _prFrame(r);
+    if (!frame) return;
+    const { wallPos, alongAxis, depthSign } = frame;
+    const innerCoord = wallPos + depthSign * r.depth;
+    const dc = r.offset + (r.doorOffset || 0);
+    const doorCx = alongAxis === 'x' ? dc : innerCoord;
+    const doorCz = alongAxis === 'x' ? innerCoord : dc;
+    const mesh = new THREE.Mesh(_DOOR_HANDLE_GEO, _DOOR_HANDLE_MAT.clone());
+    mesh.position.set(doorCx, handleY, doorCz);
+    mesh.userData.interiorDoor = true;
+    mesh.userData.doorType = 'preset';
+    mesh.userData.presetRoomId = r.id;
+    interiorDoorHandleGroup.add(mesh);
+    interiorDoorHandles.push({ type: 'preset', presetRoomId: r.id, mesh });
+  });
+}
+
+function raycastInteriorDoorHandle(e) {
+  raycaster.setFromCamera(getMouseNDC(e), camera);
+  const hits = raycaster.intersectObjects(interiorDoorHandleGroup.children, false);
+  if (!hits.length) return null;
+  return hits[0].object.material.opacity > 0.05 ? hits[0].object : null;
+}
+
+function updateInteriorDoorHandleVisibility(mx, my) {
+  const HOVER_R = 80;
+  const vr = canvas.getBoundingClientRect();
+  interiorDoorHandles.forEach(h => {
+    const sv = h.mesh.position.clone().project(camera);
+    const sx = (sv.x * 0.5 + 0.5) * vr.width;
+    const sy = (-sv.y * 0.5 + 0.5) * vr.height;
+    const dist = Math.sqrt((mx - vr.left - sx) ** 2 + (my - vr.top - sy) ** 2);
+    const target = dist < HOVER_R ? Math.max(0.15, 1 - dist / HOVER_R) : 0;
+    h.mesh.material.opacity += (target - h.mesh.material.opacity) * 0.25;
+    if (Math.abs(target - h.mesh.material.opacity) > 0.005) markDirty();
+  });
+}
+
+function updatePresetRoomHandleVisibility(mx, my) {
+  const PR_HOVER_RADIUS = 100;
+  const vr = canvas.getBoundingClientRect();
+  presetRoomHandles.forEach(h => {
+    const sv = h.mesh.position.clone().project(camera);
+    const sx = (sv.x * 0.5 + 0.5) * vr.width;
+    const sy = (-sv.y * 0.5 + 0.5) * vr.height;
+    const d = Math.hypot(mx - sx, my - sy);
+    const target = d < PR_HOVER_RADIUS ? 0.85 : 0;
+    h.mesh.material.opacity += (target - h.mesh.material.opacity) * 0.25;
+    if (Math.abs(h.mesh.material.opacity - target) > 0.005) markDirty();
+  });
+}
+
+function raycastPresetRoomHandle(e) {
+  raycaster.setFromCamera(getMouseNDC(e), camera);
+  const hits = raycaster.intersectObjects(presetRoomHandleGroup.children, false);
+  if (!hits.length) return null;
+  return hits[0].object.material.opacity > 0.05 ? hits[0].object : null;
+}
+
+let presetRoomDragState = null;
+
+const _GRID = 0.25;  // snap grid resolution (metres)
+function _snapToGrid(v) { return Math.round(v / _GRID) * _GRID; }
+
 function _snapPos(axis, raw) {
-  // Snap perpendicular position to exterior wall interior face
+  // Snap perpendicular position — wall face first, then 0.25m grid
   const hw = state.width / 2, hd = state.depth / 2, snap = 0.35;
   const limit = axis === 'x' ? hd : hw;
   if (Math.abs(raw - limit) < snap)  return  limit;
   if (Math.abs(raw + limit) < snap)  return -limit;
-  return Math.max(-limit, Math.min(limit, raw));
+  return Math.max(-limit, Math.min(limit, _snapToGrid(raw)));
 }
 
 function _snapEnd(axis, raw) {
-  // Snap an endpoint to exterior wall and clamp within building
+  // Snap an endpoint — wall face first, then 0.25m grid
   const hw = state.width / 2, hd = state.depth / 2, snap = 0.35;
   const limit = axis === 'x' ? hw : hd;
   if (Math.abs(raw - limit) < snap)  return  limit;
   if (Math.abs(raw + limit) < snap)  return -limit;
-  return Math.max(-limit, Math.min(limit, raw));
+  return Math.max(-limit, Math.min(limit, _snapToGrid(raw)));
 }
 
 // Ghost mesh shown while dragging a new partition from the UI
@@ -1943,26 +3089,189 @@ function raycastGround(e) {
     : null;
 }
 
+// Pool of partition label divs so we don't create/destroy them every frame
+const _partitionLabelPool = [];
+let   _partitionLabelCount = 0;
+
+// Pool of interior dimension labels (preset rooms + partition segments)
+const _interiorLabelPool = [];
+let   _interiorLabelCount = 0;
+
+function _getInteriorLabel(vp) {
+  if (_interiorLabelCount < _interiorLabelPool.length) {
+    const el = _interiorLabelPool[_interiorLabelCount++];
+    el.style.display = 'block';
+    return el;
+  }
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'position:absolute', 'pointer-events:none',
+    'color:#111',
+    'font-size:10px',
+    'font-weight:500',
+    'font-family:DM Sans,sans-serif',
+    'white-space:nowrap',
+    'letter-spacing:0.04em',
+    'text-shadow:0 0 4px rgba(255,255,255,0.9),0 0 2px rgba(255,255,255,1)',
+  ].join(';');
+  vp.appendChild(el);
+  _interiorLabelPool.push(el);
+  _interiorLabelCount++;
+  return el;
+}
+
+function _getPartitionLabel(vp) {
+  if (_partitionLabelCount < _partitionLabelPool.length) {
+    const el = _partitionLabelPool[_partitionLabelCount++];
+    el.style.display = 'block';
+    return el;
+  }
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'position:absolute', 'pointer-events:none',
+    'padding:2px 7px',
+    'background:rgba(21,101,192,0.85)',
+    'color:#fff',
+    'border-radius:4px',
+    'font-size:11px',
+    'font-weight:600',
+    'font-family:DM Sans,sans-serif',
+    'white-space:nowrap',
+    'transform:translate(-50%,-50%)',
+    'letter-spacing:0.02em',
+  ].join(';');
+  vp.appendChild(el);
+  _partitionLabelPool.push(el);
+  _partitionLabelCount++;
+  return el;
+}
+
 function updateWallLabels() {
   if (!wallLabels.width) return;
   const vp = document.querySelector('.viewport');
   if (!vp) return;
   const vr = vp.getBoundingClientRect();
-  const hw=state.width/2, hd=state.depth/2;
-  const labelData = [
-    { key:'width', pos: new THREE.Vector3(0,      0.55, hd+1.7), text: state.width.toFixed(1)+'m' },
-    { key:'depth', pos: new THREE.Vector3(hw+1.7, 0.55, 0),      text: state.depth.toFixed(1)+'m' },
+  const hw = state.width / 2, hd = state.depth / 2;
+  const off = 1.1;   // must match rebuildWallArrows
+  const floorY = 0.05;  // just above ground for ground-plane labels
+
+  // Project a world point → screen {x, y, behind}
+  function toScreen(wx, wy, wz) {
+    const v = new THREE.Vector3(wx, wy, wz).project(camera);
+    return { x: (v.x * 0.5 + 0.5) * vr.width, y: (-v.y * 0.5 + 0.5) * vr.height, behind: v.z >= 1 };
+  }
+
+  // Each entry: two endpoint world coords that define the line, plus the label text.
+  // The label is placed at the midpoint, rotated to match the line angle in screen space.
+  const wallH = state.height;
+  const imperial = state.units === 'imperial';
+  const fmt = v => imperial ? (v * 3.281).toFixed(1) + ' ft' : v.toFixed(2) + ' m';
+  const dimLines = [
+    { key: 'width',  text: fmt(state.width),
+      p1: toScreen(-hw, floorY,  hd + off), p2: toScreen( hw, floorY,  hd + off) },
+    { key: 'depth',  text: fmt(state.depth),
+      p1: toScreen( hw + off, floorY, -hd), p2: toScreen( hw + off, floorY,  hd) },
+    { key: 'height', text: fmt(state.height),
+      p1: toScreen(-(hw + off), 0.18,         hd),
+      p2: toScreen(-(hw + off), 0.18 + wallH, hd) },
   ];
-  labelData.forEach(({ key, pos, text }) => {
+
+  dimLines.forEach(({ key, text, p1, p2 }) => {
     const div = wallLabels[key];
     if (!div) return;
-    const v = pos.clone().project(camera);
-    if (v.z >= 1) { div.style.display='none'; return; }
-    div.style.display = 'block';
-    div.style.left = ((v.x*0.5+0.5)*vr.width)+'px';
-    div.style.top  = ((-v.y*0.5+0.5)*vr.height)+'px';
-    div.textContent = text;
+    if (p1.behind && p2.behind) { div.style.display = 'none'; return; }
+    const mx = (p1.x + p2.x) / 2;
+    const my = (p1.y + p2.y) / 2;
+    // Angle of the line in screen space; keep text readable (flip if upside-down)
+    let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    if (angle > Math.PI / 2)  angle -= Math.PI;
+    if (angle < -Math.PI / 2) angle += Math.PI;
+    div.style.display   = 'block';
+    div.style.left      = mx + 'px';
+    div.style.top       = my + 'px';
+    div.style.transform = `translate(-50%,-50%) rotate(${angle.toFixed(3)}rad)`;
+    div.textContent     = text;
   });
+
+  // Hide all pooled partition labels, then re-show the active ones
+  _partitionLabelCount = 0;
+  _partitionLabelPool.forEach(el => { el.style.display = 'none'; });
+
+  if (floorplanViewMode || interiorViewMode) {
+    state.partitions.forEach(p => {
+      const len = p.end - p.start;
+      if (len <= 0) return;
+      // Label sits on the top face of the wall
+      const labelH = 0.18 + state.height;
+      const cx = p.axis === 'x' ? (p.start + p.end) / 2 : p.pos;
+      const cz = p.axis === 'x' ? p.pos : (p.start + p.end) / 2;
+      const world = new THREE.Vector3(cx, labelH, cz);
+      const v = world.project(camera);
+      if (v.z >= 1) return;
+      const el = _getPartitionLabel(vp);
+      el.style.left = ((v.x*0.5+0.5)*vr.width)+'px';
+      el.style.top  = ((-v.y*0.5+0.5)*vr.height)+'px';
+      el.textContent = len.toFixed(2)+'m';
+    });
+  }
+
+  // ── Interior dimension labels: preset rooms (width + depth) ──
+  _interiorLabelCount = 0;
+  _interiorLabelPool.forEach(el => { el.style.display = 'none'; });
+
+  const imperial2 = state.units === 'imperial';
+  const fmtI = v => imperial2 ? (v * 3.281).toFixed(1) + ' ft' : v.toFixed(2) + ' m';
+  const labelY = 0.18 + state.height;  // top face of wall
+
+  // Helper: project a world point to screen {x,y,behind}
+  function toScreenI(wx, wy, wz) {
+    const v = new THREE.Vector3(wx, wy, wz).project(camera);
+    return { x: (v.x*0.5+0.5)*vr.width, y: (-v.y*0.5+0.5)*vr.height, behind: v.z >= 1 };
+  }
+
+  // Helper: show one inline label along the line p1→p2
+  function showInteriorLabel(text, p1, p2) {
+    if (p1.behind && p2.behind) return;
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    if (angle >  Math.PI / 2) angle -= Math.PI;
+    if (angle < -Math.PI / 2) angle += Math.PI;
+    const el = _getInteriorLabel(vp);
+    el.style.left      = mx + 'px';
+    el.style.top       = my + 'px';
+    el.style.transform = `translate(-50%,-50%) rotate(${angle.toFixed(3)}rad)`;
+    el.textContent     = text;
+  }
+
+  if (floorplanViewMode || interiorViewMode) {
+    state.presetRooms.forEach(r => {
+      const frame = _prFrame(r);
+      if (!frame) return;
+      const { wallPos, alongAxis, depthSign } = frame;
+      const halfW = r.width / 2;
+      const innerCoord = wallPos + depthSign * r.depth;
+
+      if (alongAxis === 'x') {
+        // Width label along inner wall (at innerCoord in z)
+        showInteriorLabel(fmtI(r.width),
+          toScreenI(r.offset - halfW, labelY, innerCoord),
+          toScreenI(r.offset + halfW, labelY, innerCoord));
+        // Depth label along the right side wall
+        showInteriorLabel(fmtI(r.depth),
+          toScreenI(r.offset + halfW, labelY, wallPos),
+          toScreenI(r.offset + halfW, labelY, innerCoord));
+      } else {
+        // Width label along inner wall (at innerCoord in x)
+        showInteriorLabel(fmtI(r.width),
+          toScreenI(innerCoord, labelY, r.offset - halfW),
+          toScreenI(innerCoord, labelY, r.offset + halfW));
+        // Depth label along the right side wall
+        showInteriorLabel(fmtI(r.depth),
+          toScreenI(wallPos,      labelY, r.offset + halfW),
+          toScreenI(innerCoord,   labelY, r.offset + halfW));
+      }
+    });
+  }
 }
 
 // ─── RAYCASTING ────────────────────────────────────────────────────────────────
@@ -2122,7 +3431,9 @@ function showPlacementError(msg) {
 // ─── MOUSE EVENTS ──────────────────────────────────────────────────────────────
 
 let orbitActive=false, panActive=false, prevMouseX=0, prevMouseY=0;
+let panAnchor = null;  // world point grabbed at pan start
 let rightDragged = false;  // true if right-click turned into a pan drag (suppresses delete-on-right-click)
+let rightDownX = 0, rightDownY = 0;  // screen coords at right-click mousedown
 let edgeDragState = null;  // { wall, axis ('x'|'z'), sign (1|-1) } while dragging an edge handle
 let partitionDragState = null;  // { id, axis, groundAnchor }
 
@@ -2132,8 +3443,9 @@ let targetTheta=0.343, targetPhi=1.350, targetRadius=22.11;
 const orbitTarget  = new THREE.Vector3(0, 1.5, 0);
 const targetOrigin = new THREE.Vector3(0, 1.5, 0);
 
-// Damping factor — lower = more inertia/glide (0.12 is silky, 0.25 is snappier)
-const CAM_DAMP = 0.14;
+// Damping factor used only for animated transitions (mode switch, reset view).
+// Drag input bypasses this entirely for immediate 1:1 response.
+const CAM_DAMP = 0.20;
 
 function updateCamera() {
   markDirty();
@@ -2187,6 +3499,70 @@ canvas.addEventListener('mousedown', e => {
     return;
   }
 
+  // 0a. Interior door handle → drag door along wall
+  if (e.button === 0) {
+    const dh = raycastInteriorDoorHandle(e);
+    if (dh) {
+      const gp = raycastGround(e);
+      if (gp) {
+        const dt = dh.userData.doorType;
+        if (dt === 'partition') {
+          const p = state.partitions.find(p => p.id === dh.userData.partitionId);
+          if (p) {
+            const along = p.axis === 'x' ? gp.x : gp.z;
+            interiorDoorDragState = { type: 'partition', partitionId: p.id, doorIndex: dh.userData.doorIndex, axis: p.axis, groundAnchorAlong: along };
+            canvas.style.cursor = 'ew-resize';
+            return;
+          }
+        } else if (dt === 'preset') {
+          const r = state.presetRooms.find(r => r.id === dh.userData.presetRoomId);
+          if (r) {
+            const frame = _prFrame(r);
+            const along = frame.alongAxis === 'x' ? gp.x : gp.z;
+            interiorDoorDragState = { type: 'preset', presetRoomId: r.id, groundAnchorAlong: along };
+            canvas.style.cursor = 'ew-resize';
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  // 0b-pre. Preset room handle → drag
+  const prHit = raycastPresetRoomHandle(e);
+  if (prHit) {
+    const id   = prHit.userData.presetRoomId;
+    const role = prHit.userData.presetRoomRole;
+    const gp   = raycastGround(e);
+    const r    = state.presetRooms.find(r => r.id === id);
+    presetRoomDragState = {
+      id, role, groundAnchor: gp,
+      rawOffset: r ? r.offset : 0,
+      rawDepth:  r ? r.depth  : 0,
+      rawSideL:  r ? r.offset - r.width / 2 : 0,
+      rawSideR:  r ? r.offset + r.width / 2 : 0,
+      prevWall:  null,
+    };
+    canvas.style.cursor = 'grab';
+    return;
+  }
+
+  // 0c. Furniture item → drag (free-standing or preset-room, both in furnitureMeshes)
+  if (e.button === 0) {
+    raycaster.setFromCamera(getMouseNDC(e), camera);
+
+    // All furniture (preset and free-standing) is now in furnitureMeshes
+    const fHits = raycaster.intersectObjects(furnitureMeshes, false);
+    if (fHits.length) {
+      const fid = fHits[0].object.userData.furnitureId;
+      if (fid != null) {
+        furnitureDragState = { id: fid, groundAnchor: raycastGround(e) };
+        canvas.style.cursor = 'grab';
+        return;
+      }
+    }
+  }
+
   // 0b. Partition handle → drag
   const pHit = raycastPartitionHandle(e);
   if (pHit) {
@@ -2194,7 +3570,14 @@ canvas.addEventListener('mousedown', e => {
     const role = pHit.userData.partitionRole;
     const axis = pHit.userData.partitionAxis;
     const gp   = raycastGround(e);
-    partitionDragState = { id, role, axis, groundAnchor: gp };
+    const p0 = state.partitions.find(p => p.id === id);
+    partitionDragState = {
+      id, role, axis, groundAnchor: gp,
+      // Raw (unsnapped) accumulator — avoids sticky-snap problem
+      rawPos:   p0 ? p0.pos   : 0,
+      rawStart: p0 ? p0.start : 0,
+      rawEnd:   p0 ? p0.end   : 0,
+    };
     canvas.style.cursor = 'grab';
     pHit.material.opacity = 1;
     return;
@@ -2221,16 +3604,33 @@ canvas.addEventListener('mousedown', e => {
 
   // 3. Right-click or Shift+drag → pan camera
   if (e.button === 2 || e.shiftKey) {
-    panActive = true; rightDragged = false; prevMouseX = e.clientX; prevMouseY = e.clientY;
+    panActive = true; rightDragged = false;
+    rightDownX = e.clientX; rightDownY = e.clientY;
+    prevMouseX = e.clientX; prevMouseY = e.clientY;
+    // Capture the world point under the cursor on a horizontal plane at target height
+    const _panPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -orbitTarget.y);
+    const _panRay = new THREE.Raycaster();
+    _panRay.setFromCamera(getMouseNDC(e), camera);
+    const _panHit = new THREE.Vector3();
+    panAnchor = _panRay.ray.intersectPlane(_panPlane, _panHit) ? _panHit.clone() : null;
     canvas.style.cursor = 'move';
     return;
   }
 
-  // 4. Click empty space → deselect + orbit
+  // 4. Click empty space → deselect + orbit (or pan in floorplan mode)
   selectedHandleId = null;
   refreshHandleColors();
   if (typeof renderSelectedOpening === 'function') renderSelectedOpening();
   orbitActive=true; prevMouseX=e.clientX; prevMouseY=e.clientY;
+  if (floorplanViewMode) {
+    // In floorplan: left-click always pans, never orbits — capture anchor for 2D pan
+    const _panPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -orbitTarget.y);
+    const _panRay = new THREE.Raycaster();
+    _panRay.setFromCamera(getMouseNDC(e), camera);
+    const _panHit = new THREE.Vector3();
+    panAnchor = _panRay.ray.intersectPlane(_panPlane, _panHit) ? _panHit.clone() : null;
+    canvas.style.cursor = 'move';
+  }
 });
 
 canvas.addEventListener('dblclick', () => {
@@ -2242,15 +3642,32 @@ canvas.addEventListener('dblclick', () => {
 });
 
 window.addEventListener('mouseup', () => {
+  if (orbitActive && floorplanViewMode) canvas.style.cursor = 'default';
   orbitActive = false;
   panActive = false;
+  panAnchor = null;
   if (edgeDragState) {
     edgeDragState = null;
     canvas.style.cursor = 'default';
     if (typeof stateHistory !== 'undefined') stateHistory.push();
   }
+  if (presetRoomDragState) {
+    presetRoomDragState = null;
+    canvas.style.cursor = activePaletteType ? 'crosshair' : 'default';
+    if (typeof stateHistory !== 'undefined') stateHistory.push();
+  }
   if (partitionDragState) {
     partitionDragState = null;
+    canvas.style.cursor = 'default';
+    if (typeof stateHistory !== 'undefined') stateHistory.push();
+  }
+  if (furnitureDragState) {
+    furnitureDragState = null;
+    canvas.style.cursor = 'default';
+    if (typeof stateHistory !== 'undefined') stateHistory.push();
+  }
+  if (interiorDoorDragState) {
+    interiorDoorDragState = null;
     canvas.style.cursor = 'default';
     if (typeof stateHistory !== 'undefined') stateHistory.push();
   }
@@ -2262,6 +3679,243 @@ window.addEventListener('mouseup', () => {
 });
 
 window.addEventListener('mousemove', e => {
+  // Interior door drag
+  if (interiorDoorDragState) {
+    const gp = raycastGround(e);
+    if (gp) {
+      const ds = interiorDoorDragState;
+      if (ds.type === 'partition') {
+        const p = state.partitions.find(p => p.id === ds.partitionId);
+        const d = p && p.doors && p.doors[ds.doorIndex];
+        if (p && d) {
+          const DOOR_W = 0.9, MARGIN = 0.15;
+          const along = p.axis === 'x' ? gp.x : gp.z;
+          const delta = along - ds.groundAnchorAlong;
+          ds.groundAnchorAlong = along;
+          const wallLen = p.end - p.start;
+          d.offset = Math.max(DOOR_W / 2 + MARGIN, Math.min(wallLen - DOOR_W / 2 - MARGIN, d.offset + delta));
+          buildPartitions();
+          markDirty();
+        }
+      } else if (ds.type === 'preset') {
+        const r = state.presetRooms.find(r => r.id === ds.presetRoomId);
+        if (r) {
+          const frame = _prFrame(r);
+          const PR_DOOR_W = 0.9, MARGIN = 0.08;
+          const along = frame.alongAxis === 'x' ? gp.x : gp.z;
+          const delta = along - ds.groundAnchorAlong;
+          ds.groundAnchorAlong = along;
+          // doorOffset is relative to r.offset; clamp so door stays in wall
+          const maxOff = r.width / 2 - PR_DOOR_W / 2 - MARGIN;
+          r.doorOffset = Math.max(-maxOff, Math.min(maxOff, (r.doorOffset || 0) + delta));
+          buildPresetRooms();
+          buildFurniture();
+          markDirty();
+        }
+      }
+    }
+    return;
+  }
+
+  // Furniture drag
+  if (furnitureDragState) {
+    const gp = raycastGround(e);
+    if (gp && furnitureDragState.groundAnchor) {
+      const f = state.furniture.find(f => f.id === furnitureDragState.id);
+      if (f) {
+        const def = FURNITURE_CATALOG[f.type];
+        const dims = def ? { w: def.w, d: def.d }
+          : (f.dims ? { w: Array.isArray(f.dims) ? f.dims[0] : f.dims.w,
+                        d: Array.isArray(f.dims) ? f.dims[2] : f.dims.d } : null);
+
+        if (def?.wallHug && dims) {
+          // ── Wall-hug mode ──────────────────────────────────────────────────
+          // Piece must keep its back face against a wall at all times.
+          // Determine whether to snap inside a preset room or against exterior walls.
+          if (f.presetRoomId != null) {
+            const r = state.presetRooms.find(r => r.id === f.presetRoomId);
+            const frame = r && _prFrame(r);
+            if (r && frame) {
+              let groupX, groupZ, groupRotY;
+              if (frame.alongAxis === 'x') {
+                groupX = r.offset; groupZ = frame.wallPos + frame.depthSign * r.depth / 2;
+                groupRotY = frame.depthSign === 1 ? 0 : Math.PI;
+              } else {
+                groupX = frame.wallPos + frame.depthSign * r.depth / 2; groupZ = r.offset;
+                groupRotY = frame.depthSign === 1 ? Math.PI / 2 : -Math.PI / 2;
+              }
+              const cr = Math.cos(groupRotY), sr = Math.sin(groupRotY);
+              // World → local room space
+              const lpx = (gp.x - groupX) * cr - (gp.z - groupZ) * sr;
+              const lpz = (gp.x - groupX) * sr + (gp.z - groupZ) * cr;
+              const snap = _wallHugSnapLocal(lpx, lpz, dims.w, dims.d, r.width / 2, r.depth / 2);
+              // Local → world
+              f.x = groupX + cr * snap.x + sr * snap.z;
+              f.z = groupZ - sr * snap.x + cr * snap.z;
+              f.localX = snap.x; f.localZ = snap.z;
+              f.localRotY = snap.rotY;
+              f.rotY = groupRotY + snap.rotY;
+            }
+          } else {
+            // Snap to nearest exterior wall
+            const snap = _snapToNearestWallFace(gp.x, gp.z, dims.w, dims.d, _gatherWallFaces(), state.width / 2, state.depth / 2);
+            f.x = snap.x; f.z = snap.z; f.rotY = snap.rotY;
+          }
+        } else {
+          // ── Free movement with boundary clamp ──────────────────────────────
+          f.x = f.x + gp.x - furnitureDragState.groundAnchor.x;
+          f.z = f.z + gp.z - furnitureDragState.groundAnchor.z;
+          if (dims) {
+            const hw = state.width / 2, hd = state.depth / 2;
+            const rotY = f.rotY ?? 0;
+            const cosA = Math.abs(Math.cos(rotY));
+            const sinA = Math.abs(Math.sin(rotY));
+            const hrX = cosA * dims.w / 2 + sinA * dims.d / 2;
+            const hrZ = sinA * dims.w / 2 + cosA * dims.d / 2;
+            const MARGIN = 0.05;
+            const WALL_SNAP = 0.15;
+            f.x = Math.max(-hw + hrX + MARGIN, Math.min(hw - hrX - MARGIN, f.x));
+            f.z = Math.max(-hd + hrZ + MARGIN, Math.min(hd - hrZ - MARGIN, f.z));
+            if (Math.abs(f.x - (-hw + hrX + MARGIN)) < WALL_SNAP) f.x = -hw + hrX + MARGIN;
+            if (Math.abs(f.x - ( hw - hrX - MARGIN)) < WALL_SNAP) f.x =  hw - hrX - MARGIN;
+            if (Math.abs(f.z - (-hd + hrZ + MARGIN)) < WALL_SNAP) f.z = -hd + hrZ + MARGIN;
+            if (Math.abs(f.z - ( hd - hrZ - MARGIN)) < WALL_SNAP) f.z =  hd - hrZ - MARGIN;
+          }
+        }
+        furnitureDragState.groundAnchor = gp;
+        // If this piece belongs to a preset room, back-transform to update local coords
+        // so the piece keeps its new position if the room moves later
+        if (f.presetRoomId != null) {
+          const r = state.presetRooms.find(r => r.id === f.presetRoomId);
+          if (r) {
+            const frame = _prFrame(r);
+            if (frame) {
+              let groupX, groupZ, groupRotY;
+              if (frame.alongAxis === 'x') {
+                groupX = r.offset;
+                groupZ = frame.wallPos + frame.depthSign * r.depth / 2;
+                groupRotY = frame.depthSign === 1 ? 0 : Math.PI;
+              } else {
+                groupX = frame.wallPos + frame.depthSign * r.depth / 2;
+                groupZ = r.offset;
+                groupRotY = frame.depthSign === 1 ? Math.PI / 2 : -Math.PI / 2;
+              }
+              const cos = Math.cos(-groupRotY), sin = Math.sin(-groupRotY);
+              const dx2 = f.x - groupX, dz2 = f.z - groupZ;
+              f.localX = cos * dx2 + sin * dz2;
+              f.localZ = -sin * dx2 + cos * dz2;
+            }
+          }
+        }
+        // Move the mesh/group directly for smooth feel; full rebuild on mouseup
+        const group = furnitureGroups[f.id];
+        if (group) { group.position.x = f.x; group.position.z = f.z; group.rotation.y = f.rotY ?? 0; }
+        else {
+          const mesh = furnitureMeshes.find(m => m.userData.furnitureId === f.id);
+          if (mesh) { mesh.position.x = f.x; mesh.position.z = f.z; mesh.rotation.y = f.rotY ?? 0; }
+        }
+        markDirty();
+      }
+    }
+    return;
+  }
+
+  // Preset room drag
+  if (presetRoomDragState) {
+    const { id, role } = presetRoomDragState;
+    const gp = raycastGround(e);
+    if (gp) {
+      const r = state.presetRooms.find(r => r.id === id);
+      if (r) {
+        const frame = _prFrame(r);
+        const { alongAxis, depthSign, limit } = frame;
+        const dX = gp.x - presetRoomDragState.groundAnchor.x;
+        const dZ = gp.z - presetRoomDragState.groundAnchor.z;
+        const dAlong = alongAxis === 'x' ? dX : dZ;
+        const dDepth = alongAxis === 'x' ? dZ * depthSign : dX * depthSign;
+
+        const ANCHOR_SNAP = 0.4;
+
+        if (role === 'move') {
+          // Translate only — no dimension change
+          const oldOffset = r.offset;
+          presetRoomDragState.rawOffset += dAlong;
+          const halfW   = r.width / 2;
+          const snapped = _snapToGrid(presetRoomDragState.rawOffset);
+          r.offset = Math.max(-limit + halfW + TK, Math.min(limit - halfW - TK, snapped));
+          // Shift associated furniture by the same world-space delta
+          const deltaOffset = r.offset - oldOffset;
+          if (deltaOffset !== 0) {
+            state.furniture.filter(f => f.presetRoomId === r.id).forEach(f => {
+              if (alongAxis === 'x') f.x += deltaOffset; else f.z += deltaOffset;
+            });
+          }
+
+          // Auto re-anchor when an edge gets within ANCHOR_SNAP of a perpendicular exterior wall.
+          // prevWall guard prevents oscillation: after switching wall A→B, don't immediately
+          // switch back B→A because the edge is still sitting at the corner.
+          const leftEdge  = r.offset - halfW;
+          const rightEdge = r.offset + halfW;
+          const oldWallPos   = frame.wallPos;
+          const oldDepthSign = frame.depthSign;
+          const leftTarget  = alongAxis === 'x' ? 'left'  : 'back';
+          const rightTarget = alongAxis === 'x' ? 'right' : 'front';
+          if (Math.abs(leftEdge + limit) < ANCHOR_SNAP && presetRoomDragState.prevWall !== leftTarget) {
+            const oldW = r.width, oldD = r.depth;
+            presetRoomDragState.prevWall = r.wall;
+            r.wall   = leftTarget;
+            r.offset = oldWallPos + oldDepthSign * oldD / 2;
+            r.width  = oldD;
+            r.depth  = oldW;
+            state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+            r.doorOffset = 0;
+            presetRoomDragState.rawOffset = r.offset;
+          } else if (Math.abs(rightEdge - limit) < ANCHOR_SNAP && presetRoomDragState.prevWall !== rightTarget) {
+            const oldW = r.width, oldD = r.depth;
+            presetRoomDragState.prevWall = r.wall;
+            r.wall   = rightTarget;
+            r.offset = oldWallPos + oldDepthSign * oldD / 2;
+            r.width  = oldD;
+            r.depth  = oldW;
+            state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+            r.doorOffset = 0;
+            presetRoomDragState.rawOffset = r.offset;
+          }
+
+        } else if (role === 'depth') {
+          presetRoomDragState.rawDepth += dDepth;
+          const maxDepth = (alongAxis === 'x' ? state.depth : state.width) - TK * 2;
+          r.depth = Math.min(maxDepth, Math.max(PR_MIN_D, _snapToGrid(presetRoomDragState.rawDepth)));
+          state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+
+        } else if (role === 'sideL') {
+          presetRoomDragState.rawSideL += dAlong;
+          const snapped = _snapToGrid(presetRoomDragState.rawSideL);
+          const rightEdge = r.offset + r.width / 2;
+          const newLeft = Math.max(-limit + TK, Math.min(rightEdge - PR_MIN_W, snapped));
+          r.offset = (newLeft + rightEdge) / 2;
+          r.width  = rightEdge - newLeft;
+          state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+
+        } else if (role === 'sideR') {
+          presetRoomDragState.rawSideR += dAlong;
+          const snapped = _snapToGrid(presetRoomDragState.rawSideR);
+          const leftEdge = r.offset - r.width / 2;
+          const newRight = Math.min(limit - TK, Math.max(leftEdge + PR_MIN_W, snapped));
+          r.offset = (leftEdge + newRight) / 2;
+          r.width  = newRight - leftEdge;
+          state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+        }
+
+        presetRoomDragState.groundAnchor = gp;
+        buildPresetRooms();
+        buildFurniture();
+        markDirty();
+      }
+    }
+    return;
+  }
+
   // Partition drag — only rebuild partitions, not the whole room
   if (partitionDragState) {
     const { id, role, axis, groundAnchor } = partitionDragState;
@@ -2273,15 +3927,15 @@ window.addEventListener('mousemove', e => {
         const dX = gp.x - groundAnchor.x;
         const dZ = gp.z - groundAnchor.z;
         if (role === 'move') {
-          const raw = (axis === 'x') ? p.pos + dZ : p.pos + dX;
-          p.pos = _snapPos(axis, raw);
+          partitionDragState.rawPos += (axis === 'x') ? dZ : dX;
+          p.pos = _snapPos(axis, partitionDragState.rawPos);
         } else if (role === 'start') {
-          const raw = (axis === 'x') ? p.start + dX : p.start + dZ;
-          const snapped = _snapEnd(axis, raw);
+          partitionDragState.rawStart += (axis === 'x') ? dX : dZ;
+          const snapped = _snapEnd(axis, partitionDragState.rawStart);
           if (p.end - snapped >= 0.5) p.start = snapped;
         } else if (role === 'end') {
-          const raw = (axis === 'x') ? p.end + dX : p.end + dZ;
-          const snapped = _snapEnd(axis, raw);
+          partitionDragState.rawEnd += (axis === 'x') ? dX : dZ;
+          const snapped = _snapEnd(axis, partitionDragState.rawEnd);
           if (snapped - p.start >= 0.5) p.end = snapped;
         }
         partitionDragState.groundAnchor = gp;
@@ -2317,20 +3971,24 @@ window.addEventListener('mousemove', e => {
     return;
   }
 
-  // Pan camera (shift+drag)
+  // Pan camera — raycast against horizontal plane at target height for 1:1 tracking
   if (panActive) {
-    const dx = e.clientX - prevMouseX;
-    const dy = e.clientY - prevMouseY;
-    prevMouseX = e.clientX; prevMouseY = e.clientY;
-    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) rightDragged = true;
-    const right = new THREE.Vector3();
-    const camDir = new THREE.Vector3();
-    camera.getWorldDirection(camDir);
-    right.crossVectors(camDir, new THREE.Vector3(0,1,0)).normalize();
-    const sp = orbitRadius * 0.001;
-    targetOrigin.addScaledVector(right, -dx * sp);
-    targetOrigin.y += dy * sp;
-    markDirty();
+    const totalDx = e.clientX - rightDownX, totalDy = e.clientY - rightDownY;
+    if (Math.sqrt(totalDx * totalDx + totalDy * totalDy) > 6) rightDragged = true;
+    if (panAnchor) {
+      const _panPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -orbitTarget.y);
+      const _panRay = new THREE.Raycaster();
+      _panRay.setFromCamera(getMouseNDC(e), camera);
+      const _panHit = new THREE.Vector3();
+      if (_panRay.ray.intersectPlane(_panPlane, _panHit)) {
+        // Move target so that the grabbed world point stays under the cursor
+        const delta = panAnchor.clone().sub(_panHit);
+        delta.y = 0;
+        orbitTarget.add(delta);
+        targetOrigin.copy(orbitTarget);
+        updateCamera();
+      }
+    }
     return;
   }
 
@@ -2355,12 +4013,32 @@ window.addEventListener('mousemove', e => {
   }
 
   if (orbitActive) {
-    // Scale rotation speed with zoom level — feels consistent at all distances
-    const speed = 0.004 + orbitRadius * 0.00025;
-    targetTheta -= (e.clientX - prevMouseX) * speed;
-    targetPhi    = Math.max(0.05, Math.min(1.35, targetPhi - (e.clientY - prevMouseY) * speed));
-    prevMouseX = e.clientX; prevMouseY = e.clientY;
-    markDirty(); return;
+    if (floorplanViewMode) {
+      // In floorplan mode left-drag pans, not orbits
+      if (panAnchor) {
+        const _panPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -orbitTarget.y);
+        const _panRay = new THREE.Raycaster();
+        _panRay.setFromCamera(getMouseNDC(e), camera);
+        const _panHit = new THREE.Vector3();
+        if (_panRay.ray.intersectPlane(_panPlane, _panHit)) {
+          const delta = panAnchor.clone().sub(_panHit);
+          delta.y = 0;
+          orbitTarget.add(delta);
+          targetOrigin.copy(orbitTarget);
+          updateCamera();
+        }
+      }
+    } else {
+      // Direct 1:1 response — set both current and target so lerp has no work to do
+      const speed = 0.005 + orbitRadius * 0.00020;
+      const dTheta = -(e.clientX - prevMouseX) * speed;
+      const dPhi   = -(e.clientY - prevMouseY) * speed;
+      targetTheta  = orbitTheta  += dTheta;
+      targetPhi    = orbitPhi    = Math.max(0.05, Math.min(1.35, orbitPhi + dPhi));
+      prevMouseX = e.clientX; prevMouseY = e.clientY;
+      updateCamera();
+    }
+    return;
   }
 
   const hh = raycastHandles(e);
@@ -2375,13 +4053,206 @@ window.addEventListener('mousemove', e => {
   updateEdgeHandleVisibility(e.clientX, e.clientY);
   updateHandleVisibility(e.clientX, e.clientY);
   updatePartitionHandleVisibility(e.clientX, e.clientY);
+  updatePresetRoomHandleVisibility(e.clientX, e.clientY);
+  updateInteriorDoorHandleVisibility(e.clientX, e.clientY);
+
+  // Furniture hover highlight
+  if (!furnitureDragState) {
+    raycaster.setFromCamera(getMouseNDC(e), camera);
+    const fHover = raycaster.intersectObjects(furnitureMeshes, false);
+    _setFurnitureHover(fHover.length ? fHover[0].object.userData.furnitureId : null);
+  }
 });
+
+canvas.addEventListener('mouseleave', () => { _setFurnitureHover(null); });
 
 canvas.addEventListener('contextmenu', e => {
   e.preventDefault();
-  // Only delete if right-click didn't turn into a pan drag
-  if (!rightDragged) { const h = raycastHandles(e); if (h) deleteOpening(h.openingId); }
+  if (rightDragged) { rightDragged = false; return; }
   rightDragged = false;
+
+  const ctx = window._ctxMenu;
+  if (!ctx) return;
+
+  // --- Check what was clicked ---
+  const handle = raycastHandles(e);
+  if (handle) {
+    const op = state.openings.find(o => o.id === handle.openingId);
+    if (!op) return;
+    const label = op.type === 'door' ? 'Door' : 'Window';
+    const walls = ['front','back','left','right'];
+    const moveItems = walls.filter(w => w !== op.wall).map(w => ({
+      icon: '↩', label: `Move to ${w} wall`,
+      action() { op.wall = w; op.offset = 0; stateHistory.push(); buildRoom(); if (typeof renderOpeningsList==='function') renderOpeningsList(); }
+    }));
+    ctx.show(e.clientX, e.clientY, [
+      { icon: '✕', label: `Delete ${label}`, danger: true, action() { deleteOpening(op.id); } },
+      'sep',
+      ...moveItems,
+    ]);
+    return;
+  }
+
+  // Check partition body (recursive=true handles door pivot Groups)
+  raycaster.setFromCamera(getMouseNDC(e), camera);
+  const partHits = raycaster.intersectObjects(partitionMeshes.map(pm => pm.mesh), true);
+  if (partHits.length) {
+    // Walk up to the object that owns partitionId (mesh may be inside a Group)
+    let hitObj = partHits[0].object;
+    while (hitObj && !hitObj.userData.partitionId) hitObj = hitObj.parent;
+    const pid = hitObj?.userData.partitionId;
+    const p   = state.partitions.find(x => x.id === pid);
+    if (!p) return;
+    const lenM = (p.end - p.start).toFixed(2);
+    // Work out where along the wall the right-click landed
+    const partRayHit = partHits[0].point;
+    const hitAlong = p.axis === 'x' ? partRayHit.x : partRayHit.z;
+    const doorOffset = Math.max(p.start + 0.5, Math.min(p.end - 0.5, hitAlong));
+
+    const DOOR_MARGIN = 0.15;  // min clear space between door edge and wall end / other door
+    const wallLen = p.end - p.start;
+    const relOffset = doorOffset - p.start;
+
+    // Check there's enough room at the click point
+    const clearStart = relOffset - DOOR_W / 2 >= DOOR_MARGIN;
+    const clearEnd   = relOffset + DOOR_W / 2 <= wallLen - DOOR_MARGIN;
+    const noOverlap  = (p.doors || []).every(d =>
+      Math.abs(d.offset - relOffset) >= DOOR_W + DOOR_MARGIN * 2
+    );
+    const canAddDoor = clearStart && clearEnd && noOverlap;
+
+    const hasDoors = (p.doors || []).length > 0;
+    const doorItems = (p.doors || []).map((d, i) => ({
+      icon: '🚪', label: `Remove door at ${(p.start + d.offset).toFixed(2)}m`,
+      danger: true,
+      action() {
+        p.doors.splice(i, 1);
+        stateHistory.push(); buildRoom();
+      }
+    }));
+
+    const addDoorItem = canAddDoor
+      ? { icon: '🚪', label: 'Add door here', action() {
+          if (!p.doors) p.doors = [];
+          p.doors.push({ offset: relOffset });
+          stateHistory.push(); buildRoom();
+        }}
+      : { icon: '🚪', disabled: true,
+          label: wallLen < DOOR_W + DOOR_MARGIN * 2
+            ? `Too short — need ≥${(DOOR_W + DOOR_MARGIN * 2).toFixed(1)}m`
+            : 'No space here for a door',
+          action() {} };
+
+    ctx.show(e.clientX, e.clientY, [
+      { icon: 'ℹ', label: `Wall — ${lenM} m`, disabled: true, action() {} },
+      'sep',
+      addDoorItem,
+      ...(hasDoors ? ['sep', ...doorItems] : []),
+      'sep',
+      { icon: '✕', label: 'Delete wall', danger: true, action() {
+        const idx = state.partitions.findIndex(x => x.id === pid);
+        if (idx !== -1) { state.partitions.splice(idx,1); stateHistory.push(); buildRoom(); if (typeof renderPartitionsList==='function') renderPartitionsList(); }
+        const key = p.axis==='x' ? 'horizontal_wall' : 'vertical_wall';
+        if (typeof updateItemQty==='function') updateItemQty('structuralItems', key, -1);
+      }},
+    ]);
+    return;
+  }
+
+  // Check preset room walls
+  const prBodyHits = raycaster.intersectObjects(
+    presetRoomMeshes.flatMap(p => p.meshes.filter(m => !m.userData.isFurniture)),
+    true
+  );
+  if (prBodyHits.length) {
+    const rid = prBodyHits[0].object.userData.presetRoomId ??
+                prBodyHits[0].object.parent?.userData?.presetRoomId;
+    if (rid != null) {
+      const r = state.presetRooms.find(x => x.id === rid);
+      if (r) {
+        const wallLabels2 = { front: 'Front', back: 'Back', left: 'Left', right: 'Right' };
+        const moveItems = ['front','back','left','right']
+          .filter(w => w !== r.wall)
+          .map(w => ({
+            icon: '↩', label: `Move to ${wallLabels2[w]} wall`,
+            action() {
+              r.wall = w; r.offset = 0;
+              state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+              stateHistory.push(); buildRoom();
+            }
+          }));
+        ctx.show(e.clientX, e.clientY, [
+          { icon: '🏠', label: `${r.type.charAt(0).toUpperCase()+r.type.slice(1)} room — ${r.width.toFixed(1)}m × ${r.depth.toFixed(1)}m`, disabled: true, action(){} },
+          'sep',
+          ...moveItems,
+          'sep',
+          { icon: '✕', label: 'Delete room', danger: true, action() {
+            state.furniture = state.furniture.filter(f => f.presetRoomId !== rid);
+            state.presetRooms = state.presetRooms.filter(x => x.id !== rid);
+            stateHistory.push(); buildRoom();
+          }},
+        ]);
+        return;
+      }
+    }
+  }
+
+  // Check furniture
+  const fBodyHits = raycaster.intersectObjects(furnitureMeshes, false);
+  if (fBodyHits.length) {
+    const fid = fBodyHits[0].object.userData.furnitureId;
+    const f = state.furniture.find(x => x.id === fid);
+    if (f) {
+      const def = FURNITURE_CATALOG[f.type];
+      const fLabel = f.type === '__preset__' ? 'Room furniture' : (def ? def.label : f.type);
+      ctx.show(e.clientX, e.clientY, [
+        { icon: '🪑', label: fLabel, disabled: true, action() {} },
+        'sep',
+        { icon: '↻', label: 'Rotate +45°', action() {
+          f.rotY = ((f.rotY ?? 0) + Math.PI / 4) % (Math.PI * 2);
+          stateHistory.push(); buildFurniture(); markDirty();
+        }},
+        { icon: '↺', label: 'Rotate -45°', action() {
+          f.rotY = ((f.rotY ?? 0) - Math.PI / 4 + Math.PI * 2) % (Math.PI * 2);
+          stateHistory.push(); buildFurniture(); markDirty();
+        }},
+        { icon: '↻', label: 'Rotate +90°', action() {
+          f.rotY = ((f.rotY ?? 0) + Math.PI / 2) % (Math.PI * 2);
+          stateHistory.push(); buildFurniture(); markDirty();
+        }},
+        { icon: '↺', label: 'Rotate -90°', action() {
+          f.rotY = ((f.rotY ?? 0) - Math.PI / 2 + Math.PI * 2) % (Math.PI * 2);
+          stateHistory.push(); buildFurniture(); markDirty();
+        }},
+        { icon: '⊙', label: `Set angle… (${Math.round(((f.rotY ?? 0) * 180 / Math.PI))}°)`, action() {
+          const cur = Math.round((f.rotY ?? 0) * 180 / Math.PI);
+          const raw = prompt('Enter rotation angle (0–360°):', cur);
+          if (raw === null) return;
+          const deg = parseFloat(raw);
+          if (isNaN(deg)) return;
+          f.rotY = ((deg % 360) + 360) % 360 * Math.PI / 180;
+          stateHistory.push(); buildFurniture(); markDirty();
+        }},
+        { icon: '⟳', label: 'Reset rotation', action() {
+          f.rotY = 0;
+          stateHistory.push(); buildFurniture(); markDirty();
+        }},
+        { icon: '✕', label: 'Delete', danger: true, action() {
+          state.furniture = state.furniture.filter(x => x.id !== fid);
+          stateHistory.push(); buildFurniture(); markDirty();
+          if (typeof renderFurnitureList === 'function') renderFurnitureList();
+        }},
+      ]);
+      return;
+    }
+  }
+
+  // Empty canvas — show camera/view shortcuts
+  ctx.show(e.clientX, e.clientY, [
+    { icon: '🏠', label: 'Reset view',    action() { targetTheta=0.343; targetPhi=1.350; targetRadius=22.11; targetOrigin.set(0,1.5,0); markDirty(); } },
+    { icon: '🔲', label: 'Floorplan view', action() { toggleFloorplanView(); } },
+    { icon: '👁', label: 'Interior view',  action() { toggleInteriorView(); } },
+  ]);
 });
 
 window.addEventListener('keydown', e => {
@@ -2393,10 +4264,33 @@ window.addEventListener('keydown', e => {
 });
 
 canvas.addEventListener('wheel', e => {
+  // If hovering over a furniture piece, scroll rotates it (22.5° per notch)
+  raycaster.setFromCamera(getMouseNDC(e), camera);
+  const fWheelHits = raycaster.intersectObjects(furnitureMeshes, false);
+  if (fWheelHits.length) {
+    const fid = fWheelHits[0].object.userData.furnitureId;
+    const fw = state.furniture.find(f => f.id === fid);
+    if (fw) {
+      const step = Math.PI / 8; // 22.5°
+      fw.rotY = ((fw.rotY ?? 0) + Math.sign(e.deltaY) * step + Math.PI * 2) % (Math.PI * 2);
+      // Rotate the group (preset) or mesh (regular) directly for immediate feedback
+      const grp = furnitureGroups[fw.id];
+      if (grp) { grp.rotation.y = fw.rotY; }
+      else {
+        const mesh = furnitureMeshes.find(m => m.userData.furnitureId === fw.id);
+        if (mesh) mesh.rotation.y = fw.rotY;
+      }
+      stateHistory.push();
+      markDirty();
+      e.preventDefault();
+      return;
+    }
+  }
   // Exponential zoom feels consistent — same number of scroll clicks regardless
   // of current distance. Factor of 1.12 per 100px of deltaY.
-  targetRadius = Math.max(4, Math.min(28, targetRadius * Math.pow(1.20, e.deltaY / 100)));
-  markDirty();
+  // Apply directly — no lerp lag on scroll
+  orbitRadius = targetRadius = Math.max(4, Math.min(28, orbitRadius * Math.pow(1.15, e.deltaY / 100)));
+  updateCamera();
   e.preventDefault();
 }, { passive: false });
 
@@ -2411,12 +4305,16 @@ function pinchDist(touches) {
   return Math.sqrt(dx*dx + dy*dy);
 }
 
+let _longPressTimer = null;
+function _cancelLongPress() { if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; } }
+
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
+  _cancelLongPress();
   const t0 = e.touches[0];
 
   if (e.touches.length === 2) {
-    // Two-finger: cancel any single-touch state, start pinch/pan
+    _cancelLongPress();
     touchState = {
       type: 'pinch',
       lastDist: pinchDist(e.touches),
@@ -2426,8 +4324,46 @@ canvas.addEventListener('touchstart', e => {
     return;
   }
 
-  // Single touch — check for opening handle
   const fakeEvent = { clientX: t0.clientX, clientY: t0.clientY };
+
+  // Single touch — check for preset room handle first
+  const prHitT = raycastPresetRoomHandle(fakeEvent);
+  if (prHitT) {
+    const id   = prHitT.userData.presetRoomId;
+    const role = prHitT.userData.presetRoomRole;
+    const gp   = raycastGround(fakeEvent);
+    const r    = state.presetRooms.find(r => r.id === id);
+    presetRoomDragState = {
+      id, role, groundAnchor: gp,
+      rawOffset: r ? r.offset : 0,
+      rawDepth:  r ? r.depth  : 0,
+      rawSideL:  r ? r.offset - r.width / 2 : 0,
+      rawSideR:  r ? r.offset + r.width / 2 : 0,
+      prevWall:  null,
+    };
+    touchState = { type: 'presetRoom' };
+    return;
+  }
+
+  // Check for partition handle
+  const pHit = raycastPartitionHandle(fakeEvent);
+  if (pHit) {
+    const id   = pHit.userData.partitionId;
+    const role = pHit.userData.partitionRole;
+    const axis = pHit.userData.partitionAxis;
+    const gp   = raycastGround(fakeEvent);
+    const p0   = state.partitions.find(p => p.id === id);
+    partitionDragState = {
+      id, role, axis, groundAnchor: gp,
+      rawPos:   p0 ? p0.pos   : 0,
+      rawStart: p0 ? p0.start : 0,
+      rawEnd:   p0 ? p0.end   : 0,
+    };
+    touchState = { type: 'partition' };
+    return;
+  }
+
+  // Check for opening handle
   const handleHit = raycastHandles(fakeEvent);
   if (handleHit) {
     const op = state.openings.find(o => o.id === handleHit.openingId);
@@ -2443,12 +4379,23 @@ canvas.addEventListener('touchstart', e => {
     }
   }
 
+  // Long-press → context menu (fires if finger doesn't move for 500ms)
+  _longPressTimer = setTimeout(() => {
+    _longPressTimer = null;
+    touchState = null;  // cancel orbit so it doesn't keep going
+    // Synthesise a contextmenu event at the touch point
+    canvas.dispatchEvent(Object.assign(new MouseEvent('contextmenu', {
+      bubbles: true, cancelable: true, clientX: t0.clientX, clientY: t0.clientY,
+    })));
+  }, 500);
+
   // Default: orbit
   touchState = { type: 'orbit', lastX: t0.clientX, lastY: t0.clientY };
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
   e.preventDefault();
+  _cancelLongPress();  // any movement cancels long-press
   if (!touchState) return;
 
   if (e.touches.length === 2 && touchState.type !== 'handle') {
@@ -2461,16 +4408,18 @@ canvas.addEventListener('touchmove', e => {
       const scale = touchState.lastDist / dist;
       targetRadius = Math.max(4, Math.min(28, targetRadius * scale));
 
-      // Two-finger pan
+      // Two-finger pan on the ground plane
       const dx = midX - touchState.lastMidX;
       const dy = midY - touchState.lastMidY;
-      const right = new THREE.Vector3();
-      const camDir = new THREE.Vector3();
+      const right   = new THREE.Vector3();
+      const camDir  = new THREE.Vector3();
+      const forward = new THREE.Vector3();
       camera.getWorldDirection(camDir);
       right.crossVectors(camDir, new THREE.Vector3(0,1,0)).normalize();
-      const sp = orbitRadius * 0.0012;
+      forward.set(-camDir.x, 0, -camDir.z).normalize();
+      const sp = orbitRadius * 0.0015;
       targetOrigin.addScaledVector(right, -dx * sp);
-      targetOrigin.y += dy * sp;
+      targetOrigin.addScaledVector(forward, dy * sp);
     }
     touchState.lastDist = dist;
     touchState.lastMidX = midX;
@@ -2480,6 +4429,129 @@ canvas.addEventListener('touchmove', e => {
   }
 
   const t0 = e.touches[0];
+
+  if (touchState.type === 'presetRoom') {
+    const fakeE = { clientX: t0.clientX, clientY: t0.clientY };
+    const gp = raycastGround(fakeE);
+    if (gp && presetRoomDragState) {
+      const { id, role } = presetRoomDragState;
+      const r = state.presetRooms.find(r => r.id === id);
+      if (r) {
+        const frame = _prFrame(r);
+        const { alongAxis, depthSign, limit } = frame;
+        const dX = gp.x - presetRoomDragState.groundAnchor.x;
+        const dZ = gp.z - presetRoomDragState.groundAnchor.z;
+        const dAlong = alongAxis === 'x' ? dX : dZ;
+        const dDepth = alongAxis === 'x' ? dZ * depthSign : dX * depthSign;
+        const ANCHOR_SNAP = 0.4;
+
+        if (role === 'move') {
+          // Translate only — no dimension change
+          const oldOffset = r.offset;
+          presetRoomDragState.rawOffset += dAlong;
+          const halfW   = r.width / 2;
+          const snapped = _snapToGrid(presetRoomDragState.rawOffset);
+          r.offset = Math.max(-limit + halfW + TK, Math.min(limit - halfW - TK, snapped));
+          // Shift associated furniture by the same world-space delta
+          const deltaOffset = r.offset - oldOffset;
+          if (deltaOffset !== 0) {
+            state.furniture.filter(f => f.presetRoomId === r.id).forEach(f => {
+              if (alongAxis === 'x') f.x += deltaOffset; else f.z += deltaOffset;
+            });
+          }
+
+          // Auto re-anchor when an edge gets within ANCHOR_SNAP of a perpendicular exterior wall.
+          // prevWall guard prevents oscillation: after switching wall A→B, don't immediately
+          // switch back B→A because the edge is still sitting at the corner.
+          const leftEdge  = r.offset - halfW;
+          const rightEdge = r.offset + halfW;
+          const oldWallPos   = frame.wallPos;
+          const oldDepthSign = frame.depthSign;
+          const leftTarget  = alongAxis === 'x' ? 'left'  : 'back';
+          const rightTarget = alongAxis === 'x' ? 'right' : 'front';
+          if (Math.abs(leftEdge + limit) < ANCHOR_SNAP && presetRoomDragState.prevWall !== leftTarget) {
+            const oldW = r.width, oldD = r.depth;
+            presetRoomDragState.prevWall = r.wall;
+            r.wall   = leftTarget;
+            r.offset = oldWallPos + oldDepthSign * oldD / 2;
+            r.width  = oldD;
+            r.depth  = oldW;
+            state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+            r.doorOffset = 0;
+            presetRoomDragState.rawOffset = r.offset;
+          } else if (Math.abs(rightEdge - limit) < ANCHOR_SNAP && presetRoomDragState.prevWall !== rightTarget) {
+            const oldW = r.width, oldD = r.depth;
+            presetRoomDragState.prevWall = r.wall;
+            r.wall   = rightTarget;
+            r.offset = oldWallPos + oldDepthSign * oldD / 2;
+            r.width  = oldD;
+            r.depth  = oldW;
+            state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+            r.doorOffset = 0;
+            presetRoomDragState.rawOffset = r.offset;
+          }
+
+        } else if (role === 'depth') {
+          presetRoomDragState.rawDepth += dDepth;
+          const maxDepth = (alongAxis === 'x' ? state.depth : state.width) - TK * 2;
+          r.depth = Math.min(maxDepth, Math.max(PR_MIN_D, _snapToGrid(presetRoomDragState.rawDepth)));
+          state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+
+        } else if (role === 'sideL') {
+          presetRoomDragState.rawSideL += dAlong;
+          const snapped = _snapToGrid(presetRoomDragState.rawSideL);
+          const rightEdge = r.offset + r.width / 2;
+          const newLeft = Math.max(-limit + TK, Math.min(rightEdge - PR_MIN_W, snapped));
+          r.offset = (newLeft + rightEdge) / 2;
+          r.width  = rightEdge - newLeft;
+          state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+
+        } else if (role === 'sideR') {
+          presetRoomDragState.rawSideR += dAlong;
+          const snapped = _snapToGrid(presetRoomDragState.rawSideR);
+          const leftEdge = r.offset - r.width / 2;
+          const newRight = Math.min(limit - TK, Math.max(leftEdge + PR_MIN_W, snapped));
+          r.offset = (leftEdge + newRight) / 2;
+          r.width  = newRight - leftEdge;
+          state.furniture = state.furniture.filter(f => f.presetRoomId !== r.id);
+        }
+        presetRoomDragState.groundAnchor = gp;
+        buildPresetRooms(); buildFurniture(); markDirty();
+      }
+    }
+    return;
+  }
+
+  if (touchState.type === 'partition') {
+    // Re-use the same mouse-move logic via a fake mousemove
+    const fakeE = { clientX: t0.clientX, clientY: t0.clientY };
+    const gp = raycastGround(fakeE);
+    if (gp && partitionDragState) {
+      const { id, role, axis, groundAnchor } = partitionDragState;
+      const p = state.partitions.find(p => p.id === id);
+      if (p) {
+        const prevPos = p.pos, prevStart = p.start, prevEnd = p.end;
+        const dX = gp.x - groundAnchor.x, dZ = gp.z - groundAnchor.z;
+        if (role === 'move') {
+          partitionDragState.rawPos += axis === 'x' ? dZ : dX;
+          p.pos = _snapPos(axis, partitionDragState.rawPos);
+        } else if (role === 'start') {
+          partitionDragState.rawStart += axis === 'x' ? dX : dZ;
+          const snapped = _snapEnd(axis, partitionDragState.rawStart);
+          if (p.end - snapped >= 0.5) p.start = snapped;
+        } else if (role === 'end') {
+          partitionDragState.rawEnd += axis === 'x' ? dX : dZ;
+          const snapped = _snapEnd(axis, partitionDragState.rawEnd);
+          if (snapped - p.start >= 0.5) p.end = snapped;
+        }
+        partitionDragState.groundAnchor = gp;
+        if (p.pos !== prevPos || p.start !== prevStart || p.end !== prevEnd) {
+          buildPartitions(); markDirty();
+        }
+      }
+    }
+    return;
+  }
 
   if (touchState.type === 'handle') {
     const fakeEvent = { clientX: t0.clientX, clientY: t0.clientY };
@@ -2507,11 +4579,13 @@ canvas.addEventListener('touchmove', e => {
 }, { passive: false });
 
 canvas.addEventListener('touchend', e => {
+  _cancelLongPress();
   if (e.touches.length === 0) {
-    // Push undo snapshot when a dimension or opening drag completes via touch
-    if (touchState?.type === 'handle') {
+    if (touchState?.type === 'handle' || touchState?.type === 'partition' || touchState?.type === 'presetRoom') {
       if (typeof stateHistory !== 'undefined') stateHistory.push();
     }
+    if (touchState?.type === 'partition') partitionDragState = null;
+    if (touchState?.type === 'presetRoom') presetRoomDragState = null;
     touchState = null;
   } else if (e.touches.length === 1 && touchState?.type === 'pinch') {
     // Dropped to one finger — switch to orbit
@@ -2539,22 +4613,22 @@ function toggleFloorplanView() {
     targetOrigin.set(0, 0, 0);
     markDirty();
     // Hide roof meshes
-    buildingGroup.traverse(child => {
+    [buildingGroup, roofGroup].forEach(grp => grp.traverse(child => {
       if (child.isMesh && child.userData.isRoof) {
         child.userData._fpSavedVis = child.visible;
         child.visible = false;
       }
-    });
+    }));
     // Hide sky dome for cleaner view
     skyDome.visible = false;
   } else {
     // Restore
-    buildingGroup.traverse(child => {
+    [buildingGroup, roofGroup].forEach(grp => grp.traverse(child => {
       if (child.isMesh && child.userData._fpSavedVis !== undefined) {
         child.visible = child.userData._fpSavedVis;
         delete child.userData._fpSavedVis;
       }
-    });
+    }));
     skyDome.visible = true;
     // Return to isometric via smooth camera animation
     targetTheta = 0.343; targetPhi = 1.350; targetRadius = 22.11;
@@ -2585,6 +4659,7 @@ const _origUpdateCamera = updateCamera;
   // tickCamera lerps toward targets every frame — marks dirty itself if moving
   tickCamera();
   if (_dirty || _dirtyFrames > 0) {
+    if (_hoverBoxHelper) _hoverBoxHelper.update();
     if (interiorViewMode) updateWallVisibility();
     renderer.render(scene, camera);
     updateWallLabels();

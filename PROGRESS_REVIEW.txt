@@ -1,0 +1,179 @@
+GARDEN ROOM CONFIGURATOR — PROGRESS REVIEW
+===========================================
+Date: March 2026
+
+
+WHAT HAS BEEN BUILT
+-------------------
+
+3D VIEWPORT
+The 3D viewer is functional and looks good. Customers can orbit, zoom, and
+pan the camera naturally. ACES filmic tone mapping and soft shadows give the
+render a photographic quality. Interior view mode fades the near walls and
+hides the roof so the inside of the room is clearly readable. A floorplan
+top-down view is also available. Dimension arrows on the walls are
+interactive and update in real time.
+
+DIMENSION CONTROLS
+Width, depth, and height sliders update the 3D model live. Draggable arrows
+on the ground plane outside each wall give a more tactile alternative to the
+sliders. Wall length labels update correctly as the room is resized.
+
+OPENINGS (DOORS AND WINDOWS)
+Doors and windows can be placed on any wall, dragged to any position, and
+each carries its own style independently. The system prevents overlapping
+placements. A right-click context menu allows moving an opening to a
+different wall or deleting it. A reasonable variety of door and window
+styles are available.
+
+PARTITION WALLS AND INTERIOR DOORS
+Freehand interior partition walls can be drawn on any wall axis, resized by
+dragging handles, and given an interior door at any point along their
+length. Preset rooms use this same system for their walls.
+
+PRESET ROOMS
+Bathroom, bedroom, and office presets can be added to the room. Each drops
+in with furniture included, stays within the exterior walls, and moves as a
+unit when repositioned. Furniture within a preset room stays attached when
+the room moves, and can also be independently repositioned after placement.
+
+FURNITURE
+35 furniture items across 8 categories (Living, Dining, Office, Bedroom,
+Bathroom, Entertainment, Utility, Misc), all using real 3D models at
+accurate real-world scale. Furniture can be dragged to reposition, rotated
+via scroll wheel or right-click menu, and shows a wireframe highlight and
+glow effect when hovered to indicate it is interactive.
+
+ROOF
+Apex and flat roof types both work. Apex pitch is slider-controlled and
+updates geometry live. Flat roof tilt angle is similarly adjustable. Gable
+rake boards and eave fascia trim render correctly on the apex roof. A
+veranda can be added with an adjustable depth slider.
+
+CLADDING
+18 curated options covering natural timber (cedar, larch, oak, shiplap,
+tongue & groove, loglap), thermowood (charred, charred black), composite
+(Strongcore, NeoTimber), metal (anthracite, black), corten steel, stone,
+and brick. Per-wall cladding override is supported, so different materials
+can be applied to different faces of the building.
+
+INTERIOR FINISHES
+Floor textures are all real tileable images: oak, farmhouse oak, walnut,
+tiles, polished concrete, rubber, and gym black. Four wall finishes also use
+real textures: white plaster, charcoal plaster, birch plywood, and oak
+panel. The remaining wall finish options use flat colours.
+
+PRICING ENGINE
+Comprehensive live pricing covering: foundation type and area, roof style
+and finish, cladding, doors and windows, electrical quantities, bathroom
+items, heating, decking, and site services. An admin panel allows any rate
+to be overridden without touching code, and individual items can be disabled
+to hide them from customers entirely. A full itemised quote modal is
+available, and a lead capture form builds a mailto enquiry with the complete
+specification included.
+
+UNDO / REDO
+Full undo/redo history with a 50-step stack. Toolbar buttons disable
+correctly when there is nothing to undo or redo.
+
+SAVE / LOAD / PRESETS
+Designs can be saved by name, downloaded as a JSON file, re-uploaded, or
+deleted. Four built-in presets (Garden Office, Summer House, Studio/Bar,
+Compact Retreat) give customers a useful starting point.
+
+ADMIN PANEL
+Rate overrides, item enable/disable, and asset upload all function.
+Changes apply immediately on the customer-facing side via localStorage
+without a page reload.
+
+
+WHAT IS OUTSTANDING
+-------------------
+The following is a comparison against the leading competitor product
+(gardenroomplanner.com). Items are roughly ordered by customer impact.
+
+1. KITCHEN TAB — NOT STARTED
+   The competitor has a full kitchen configurator with top/bottom/tall/island
+   and appliance sub-tabs. Cabinet units are resizable and support finish,
+   worktop, and handle customisation. We have nothing for this currently.
+   This is the single largest visible gap for a garden room product.
+
+2. DECKING — BASIC ONLY
+   We have a simple on/off decking toggle with one material choice. The
+   competitor offers 6 shape presets (Square, L-Shape, U-Shape, Triangle,
+   Semi-Triangle, Stairs), each individually resizable, with per-object
+   balustrade options. This needs significant work.
+
+3. BATHROOM COMPLETION
+   The bathroom preset room currently contains only a toilet and a cabinet
+   used as a vanity placeholder. A shower and basin are missing because no
+   suitable 3D models have been sourced yet. These are the most obvious
+   omissions when a customer opens the bathroom preset.
+
+4. ADDITIONAL ROOM TYPES
+   The competitor offers Cloakroom and Sauna presets in addition to
+   bathroom/bedroom/office. Neither exists in our app yet.
+
+5. ADDITIONAL WALL TYPES
+   We only support straight partition walls. The competitor also offers
+   mezzanine floors, dwarf walls, and L-shape dwarf walls. These would
+   require meaningful geometry work to implement.
+
+6. INTERIOR DOOR VARIETY
+   We have one interior door type. The competitor offers interior glass
+   windows, interior glass doors, and cavity doors as distinct options.
+
+7. EXTERIOR COLOUR CONTROLS — TOO COARSE
+   We have a single frame colour picker that applies to all aluminium
+   elements. The competitor has separate colour controls for windows, posts,
+   flashing, guttering, and door handles independently.
+
+8. BLINDS — NOT IMPLEMENTED
+   The competitor offers optional blinds on every window and door in four
+   colours. We have no blinds feature.
+
+9. STRUCTURE TYPES — FREESTANDING ONLY
+   The competitor supports Partial Opening and Attached Extension modes
+   which significantly alter the building geometry. We only model a
+   freestanding structure.
+
+10. ELECTRICAL AND LIGHTING — NO 3D PLACEMENT
+    We have quantity counters for sockets, switches, and lights which feed
+    into pricing. The competitor has all of these as dynamically placeable
+    3D objects on the walls. Retrofitting full 3D placement would be a
+    significant piece of work.
+
+11. ROOF FINISH GAPS
+    The competitor lists Copper, Corrugated, and Coated Tile roof coverings
+    we do not have. Their flat roof also has three sliders (angle, thickness,
+    trim height) versus our one, and their pitched roof includes a thickness
+    slider.
+
+12. RESIZABLE OBJECTS
+    Kitchen units and decking pieces on the competitor can be scaled to
+    arbitrary dimensions. All our furniture is fixed-size.
+
+13. MOBILE RESPONSIVENESS
+    The layout is desktop-first. Basic touch and scroll work but the
+    interface is not optimised for tablet or phone use. Given this is
+    intended to be embedded on a customer-facing website, this should
+    be addressed before public launch.
+
+14. SAVE TO ACCOUNT / CLOUD
+    Currently designs are saved to the browser's local storage only. If a
+    customer clears their browser they lose their work. A server-side save
+    or shareable link would be needed for a production deployment.
+
+
+MAIN NOTES
+-----
+The pricing engine is the most complete part of the project and is in good
+shape. The 3D viewer and core room-building tools are functional and
+presentable(ish). The main body of outstanding work is on the interior
+furnishing and customisation side — kitchen, decking, and the finer
+exterior finish controls — which are the areas where the competitor is
+most ahead.
+
+Theres still some work to be done on fine-tuning certain aspects of the 3D models, specifically the roofs and the foundation, but its fine for now.
+
+The main things I need are a completely comprehensive list of exact products we offer and their prices so they can be input into the tool, and I mean EVERYTHING. Until I get that list then I will have to keep working off of placeholder models and textures.

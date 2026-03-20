@@ -15,84 +15,124 @@ Place in: assets/
 
 -- FLOOR TEXTURES --
 
-  int_floor_oak.jpg               Natural oak laminate / engineered wood planks
-  int_floor_farm_oak.jpg          Farmhouse / wider-board light oak
-  int_floor_walnut.jpg            Dark walnut wood planks
-  int_floor_tiles.jpg             Neutral ceramic / porcelain floor tile
-  int_floor_polished_concrete.jpg Smooth polished grey concrete
-  int_floor_rubber.jpg            Textured rubber tile (generic dark)
-  int_floor_gym_black.jpg         Black gym foam/rubber mat
-  int_floor_white_marble.jpg      White/grey veined marble
+  [DONE] int_floor_oak.jpg               Natural oak laminate / engineered wood planks
+  [DONE] int_floor_farm_oak.jpg          Farmhouse / wider-board light oak
+  [DONE] int_floor_walnut.jpg            Dark walnut wood planks
+  [DONE] int_floor_tiles.jpg             Neutral ceramic / porcelain floor tile
+  [DONE] int_floor_polished_concrete.jpg Smooth polished grey concrete
+  [DONE] int_floor_rubber.jpg            Textured rubber tile (generic dark)
+  [DONE] int_floor_gym_black.jpg         Black gym foam/rubber mat
+         int_floor_white_marble.jpg      White/grey veined marble
 
 -- INTERIOR WALL TEXTURES --
 
-  int_wall_white.jpg              White painted plaster / smooth emulsion
-  int_wall_charcoal.jpg           Charcoal / dark grey painted plaster
-  int_wall_plywood.jpg            Structural plywood sheet (visible grain + edges)
-  int_wall_oak.jpg                Oak wall panel / timber cladding (interior)
-  int_wall_tongue_groove.jpg      Tongue-and-groove boarding (horizontal or vertical)
+         int_wall_white.jpg              White painted plaster / smooth emulsion
+         int_wall_charcoal.jpg           Charcoal / dark grey painted plaster
+         int_wall_plywood.jpg            Structural plywood sheet (visible grain + edges)
+         int_wall_oak.jpg                Oak wall panel / timber cladding (interior)
+         int_wall_tongue_groove.jpg      Tongue-and-groove boarding (horizontal or vertical)
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SECTION 2 — FURNITURE & FIXTURE MODELS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-These are the interactive/draggable objects placed inside the room.
-Place in: assets/
-Naming convention: furniture_<name>.glb
-Approximate real-world sizes given as W × H × D (metres).
+Sizes given as W × H × D (metres). [DONE] = file in assets/, [AVAIL] = in assets/ but not yet wired up, blank = still needed.
 
--- BATHROOM / WET ROOM --
-(Sourced from pricing.js → bathroom.fixtures)
+-- LIVING ROOM --
 
-  furniture_toilet.glb                ~0.40 × 0.75 × 0.65   Back-to-wall toilet pan + cistern
-  furniture_basin_pedestal.glb        ~0.55 × 0.85 × 0.45   Pedestal basin / sink
-  furniture_vanity_mini.glb           ~0.40 × 0.85 × 0.40   Mini under-sink vanity unit
-  furniture_vanity_small.glb          ~0.50 × 0.85 × 0.45   Small vanity unit
-  furniture_vanity_mid.glb            ~0.60 × 0.85 × 0.50   Mid vanity unit
-  furniture_vanity_large.glb          ~0.90 × 0.85 × 0.50   Large vanity / double-sink unit
-  furniture_shower_enclosure.glb      ~0.90 × 2.00 × 0.90   Shower tray + glass enclosure
-  furniture_towel_rail.glb            ~0.50 × 0.90 × 0.08   Heated towel rail (wall-mounted)
+  [DONE] white_couch.glb          Sofa (2-seat)        1.56 × 0.64 × 0.84
+  [DONE] couch4.glb               Sofa (3-seat)        1.85 × 0.64 × 0.90
+  [DONE] corner_sofa.glb          Corner Sofa          3.24 × 0.62 × 2.56
+  [DONE] grey_armchair.glb        Armchair             0.92 × 0.62 × 0.90
+  [DONE] circular_table.glb       Coffee Table         1.28 × 0.59 × 1.28
+  [DONE] tv_unit.glb              TV Unit              1.31 × 0.59 × 0.35
+  [DONE] bench.glb                Bench                1.57 × 0.88 × 0.68
+  [DONE] poof.glb                 Poof / Ottoman       0.35 × 0.34 × 0.35
+  [AVAIL] chouch2.glb, couch3.glb, armchair3.glb, armchair4.glb, orange_armchair.glb
 
--- HEATING / ELECTRICAL --
-(Sourced from pricing.js → heating.units + CLAUDE.md electrical items)
+-- DINING --
 
-  furniture_radiator.glb              ~1.00 × 0.60 × 0.08   Single panel radiator (wall-mounted)
-  furniture_log_fire.glb              ~0.80 × 0.90 × 0.45   Free-standing log burning stove
-  furniture_wall_heater.glb           ~0.60 × 0.35 × 0.12   Wall-mounted electric heater / blow heater
+  [DONE] table.glb                Dining Table         1.45 × 0.60 × 0.84
+  [DONE] dining_chair.glb         Dining Chair         0.40 × 0.75 × 0.46
+  [DONE] stool.glb                Stool                0.34 × 0.35 × 0.34
+  [DONE] stool_fancy.glb          Bar Stool            0.34 × 0.75 × 0.34
+  [AVAIL] dining_chair2.glb
 
 -- HOME OFFICE --
-(No explicit pricing entries, but core use-case for garden rooms)
 
-  furniture_desk.glb                  ~1.20 × 0.75 × 0.60   Straight office desk
-  furniture_desk_corner.glb           ~1.40 × 0.75 × 1.40   L-shaped corner desk
-  furniture_office_chair.glb          ~0.65 × 1.20 × 0.65   Ergonomic office chair
-  furniture_monitor.glb               ~0.60 × 0.40 × 0.20   Monitor on stand
-  furniture_shelving_unit.glb         ~0.80 × 2.00 × 0.30   Tall bookshelf / shelving unit
+  [DONE] computer_desk.glb        Desk                 1.33 × 1.02 × 0.56
+  [DONE] office_chair.glb         Office Chair         0.51 × 0.99 × 0.60
+  [DONE] shelf_unit.glb           Bookshelf            0.76 × 1.40 × 0.37
+  [DONE] watercooler.glb          Water Cooler         0.26 × 1.03 × 0.26
+  [AVAIL] Desk.glb, desk2.glb, desk3.glb, old_desk.glb, officechair2.glb
+         furniture_log_fire.glb   Log Burner    ~0.80 × 0.90 × 0.45  (not in set)
+  [DONE] bedroom_heater_radiator.glb  Radiator   1.00 × 0.60 × 0.10
 
--- GYM --
-(Sourced from pricing.js → flooring.gym)
+-- BEDROOM --
 
-  furniture_workout_bench.glb         ~1.20 × 0.50 × 0.45   Flat weight bench
-  furniture_weights_rack.glb          ~1.00 × 1.50 × 0.50   Dumbbell rack with weights
-  furniture_wall_mirror.glb           ~1.20 × 2.00 × 0.02   Large floor-to-ceiling gym mirror (wall-mounted)
+  [DONE] bed_single.glb           Single Bed           0.90 × 0.50 × 1.79
+  [DONE] bed_double.glb           Double Bed           1.26 × 0.61 × 1.50
+  [DONE] bed_queen.glb            Queen Bed            2.44 × 0.72 × 1.83
+  [DONE] bed_bunk.glb             Bunk Bed             1.38 × 1.29 × 0.82
+  [DONE] cabinet_fancy.glb        Wardrobe             1.76 × 1.78 × 0.39
+  [DONE] side_table.glb           Bedside Table        0.46 × 0.40 × 0.45
+  [AVAIL] cabinet_brown.glb, cabinet_white.glb, corner_cabinet.glb
+         furniture_dresser.glb    Chest of drawers (not in set)
+
+-- BATHROOM --
+
+  [DONE] toilet.glb               Toilet               0.35 × 0.68 × 0.60
+  [DONE] bathtub.glb              Bathtub              1.96 × 0.65 × 0.93
+  [DONE] shower.glb               Shower enclosure     0.90 × 2.00 × 0.90
+  [DONE] wash_basin_stand.glb     Basin/sink           0.50 × 0.85 × 0.45
+         furniture_towel_rail.glb Towel rail       ~0.50 × 0.90 × 0.08  (not in set)
+
+-- ENTERTAINMENT --
+
+  [DONE] pool_table.glb           Pool Table           1.99 × 0.55 × 1.17
+  [DONE] grand_piano.glb          Grand Piano          1.40 × 1.45 × 2.09
+  [DONE] arcade_machine.glb       Arcade Machine       0.70 × 1.78 × 0.75
+  [DONE] speaker.glb              Speaker              0.27 × 0.44 × 0.30
+
+-- KITCHEN / UTILITY --
+
+  [DONE] fridge.glb               Fridge               0.58 × 1.61 × 0.60
+  [DONE] oven.glb                 Oven                 0.52 × 0.66 × 0.56
+  [DONE] microwave.glb            Microwave            0.43 × 0.22 × 0.34
+  [DONE] washingmachine.glb       Washing Machine      0.50 × 0.72 × 0.44
+
+-- MISC --
+
+  [DONE] plant.glb                Plant                0.57 × 1.36 × 0.69
+  [DONE] table_lamp.glb           Table Lamp           0.52 × 1.51 × 0.52
+  [DONE] tall_lamp.glb            Floor Lamp           0.59 × 1.55 × 0.57
+  [DONE] easel_canvas.glb         Easel / Canvas       0.96 × 2.30 × 0.57
+  [AVAIL] ironing_board.glb, little_bin.glb
+         furniture_rug.glb        Area rug  ~1.50 × 0.02 × 2.00  (not in set)
+         furniture_wall_mirror.glb Wall mirror          (not in set)
+         furniture_weights_rack.glb Weights rack        (not in set)
+         furniture_workout_bench.glb Gym bench          (not in set)
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SECTION 3 — TESTING PRIORITY
+SECTION 3 — REMAINING PRIORITIES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-If you only have a few assets to start with, prioritise these:
+TEXTURES (still needed):
+  int_wall_white.jpg          — most common wall finish
+  int_wall_plywood.jpg
+  int_wall_oak.jpg
+  int_wall_charcoal.jpg
+  int_wall_tongue_groove.jpg
+  int_floor_white_marble.jpg
 
-TEXTURES (2):
-  int_floor_oak.jpg          — most common floor finish
-  int_wall_white.jpg         — most common wall finish
-
-MODELS (4 — one complete "bathroom preset"):
-  furniture_toilet.glb
-  furniture_basin_pedestal.glb
-  furniture_shower_enclosure.glb
-  furniture_towel_rail.glb
+MODELS (still needed — highest impact):
+  furniture_shower.glb        — bathroom preset uses box geometry placeholder
+  furniture_basin.glb         — bathroom preset uses box geometry placeholder
+  furniture_towel_rail.glb    — bathroom preset uses box geometry placeholder
+  furniture_log_fire.glb      — popular add-on item
+  furniture_dresser.glb       — bedroom preset uses box geometry placeholder
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -117,3 +157,4 @@ GLB requirements:
   - Baked or PBR materials included in the GLB
   - Target polygon count: <10,000 triangles per piece of furniture
   - Test with: https://gltf-viewer.donmccurdy.com/
+

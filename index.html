@@ -49,7 +49,10 @@
 <div class="main">
   <div class="viewport">
     <canvas id="canvas" ondragover="partitionDragOver(event)" ondrop="partitionDrop(event)"></canvas>
-    <div class="view-hint">Drag to orbit · Right-click drag to pan · Scroll to zoom · Drag arrows to resize</div>
+    <div class="view-hint">
+      <span class="view-hint-desktop">Drag to orbit · Right-click drag to pan · Scroll to zoom · Drag arrows to resize</span>
+      <span class="view-hint-touch" style="display:none">1 finger: orbit · 2 fingers: zoom &amp; pan · Long-press: options</span>
+    </div>
 
     <!-- Drop zone overlay (shown when dragging a panel item) -->
     <div class="drop-overlay" id="dropOverlay">
@@ -61,38 +64,21 @@
 
     <!-- Viewport toolbar -->
     <div class="viewport-toolbar" role="toolbar" aria-label="View controls">
-      <button class="tb-btn" id="tbUndo" onclick="undoState()" title="Undo (Ctrl+Z)" disabled>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h13a4 4 0 010 8H7"/><path d="M3 10l5-5M3 10l5 5"/></svg>
-      </button>
-      <button class="tb-btn" id="tbRedo" onclick="redoState()" title="Redo (Ctrl+Shift+Z)" disabled>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h9"/><path d="M21 10l-5-5M21 10l-5 5"/></svg>
-      </button>
-      <span class="tb-sep"></span>
-      <button class="tb-btn" id="tbFlip" onclick="flipDesign()" title="Flip / Mirror">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M8 7H4l4 10H4"/><path d="M16 7h4l-4 10h4"/></svg>
-      </button>
-      <button class="tb-btn" id="tbInterior" onclick="toggleInteriorView()" title="Interior / Exterior view">
+      <button class="tb-btn" id="tbInterior" onclick="toggleInteriorView()" title="Interior view">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
       </button>
       <button class="tb-btn" id="tbFloorplan" onclick="toggleFloorplanView()" title="Floorplan view">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 12h8v9M14 3v9h7"/></svg>
       </button>
-      <span class="tb-sep"></span>
-      <button class="tb-btn" id="tbUnits" onclick="toggleUnits()" title="Toggle units (m / ft)">
-        <span style="font-size:12px;font-weight:600" id="unitsLabel">m</span>
+      <button class="tb-btn" id="tbReset" onclick="targetTheta=0.343;targetPhi=1.350;targetRadius=22.11;targetOrigin.set(0,1.5,0);markDirty()" title="Reset view">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
       </button>
-      <span class="tb-sep"></span>
-      <button class="tb-btn" onclick="setViewPreset('front')" title="Front view">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" id="tbUndo" onclick="stateHistory.undo()" title="Undo" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 2.64-6.36L3 9"/></svg>
       </button>
-      <button class="tb-btn" onclick="setViewPreset('side')" title="Side view">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18V6l8-3v18"/><path d="M12 3l8 3v12l-8 3"/></svg>
-      </button>
-      <button class="tb-btn" onclick="setViewPreset('top')" title="Top view">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 5v-2M12 21v-2M5 12H3M21 12h-2"/></svg>
-      </button>
-      <button class="tb-btn" onclick="setViewPreset('isometric')" title="Isometric view">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      <button class="tb-btn" id="tbRedo" onclick="stateHistory.redo()" title="Redo" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-2.64-6.36L21 9"/></svg>
       </button>
     </div>
 
@@ -759,6 +745,91 @@
   </div>
 </div>
 
+    <!-- ── Preset Rooms ── -->
+    <div class="section-title" style="margin-top:14px">Preset Rooms</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <button class="modal-btn secondary" style="flex:1;min-width:80px;padding:8px 6px;font-size:12px" onclick="addPresetRoom('bathroom')">🚿 Bathroom</button>
+      <button class="modal-btn secondary" style="flex:1;min-width:80px;padding:8px 6px;font-size:12px" onclick="addPresetRoom('bedroom')">🛏 Bedroom</button>
+      <button class="modal-btn secondary" style="flex:1;min-width:80px;padding:8px 6px;font-size:12px" onclick="addPresetRoom('office')">💼 Office</button>
+    </div>
+    <div id="presetRoomsList" style="font-size:12px;color:var(--muted);padding:2px 0"></div>
+
+    <!-- ── Furniture ── -->
+    <div class="section-title" style="margin-top:16px">Furniture</div>
+    <details style="margin-bottom:6px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:2px 0">Living</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('sofa_2')">Sofa 2-seat</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('sofa_3')">Sofa 3-seat</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('corner_sofa')">Corner Sofa</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('armchair')">Armchair</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('coffee_table')">Coffee Table</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('tv_unit')">TV Unit</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('bench')">Bench</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('poof')">Poof / Ottoman</button>
+      </div>
+    </details>
+    <details style="margin-bottom:6px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:2px 0">Dining</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('dining_table')">Dining Table</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('dining_chair')">Dining Chair</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('stool')">Stool</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('stool_fancy')">Bar Stool</button>
+      </div>
+    </details>
+    <details style="margin-bottom:6px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:2px 0">Office</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('desk')">Desk</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('office_chair')">Office Chair</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('bookshelf')">Bookshelf</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('water_cooler')">Water Cooler</button>
+      </div>
+    </details>
+    <details style="margin-bottom:6px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:2px 0">Bedroom</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('single_bed')">Single Bed</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('double_bed')">Double Bed</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('queen_bed')">Queen Bed</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('bunk_bed')">Bunk Bed</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('wardrobe')">Wardrobe</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('bedside')">Bedside Table</button>
+      </div>
+    </details>
+    <details style="margin-bottom:6px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:2px 0">Bathroom</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('toilet')">Toilet</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('bathtub')">Bathtub</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('shower')">Shower</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('basin')">Basin</button>
+      </div>
+    </details>
+    <details style="margin-bottom:6px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:2px 0">Entertainment</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('pool_table')">Pool Table</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('grand_piano')">Grand Piano</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('arcade_machine')">Arcade Machine</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('speaker')">Speaker</button>
+      </div>
+    </details>
+    <details style="margin-bottom:6px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:2px 0">Kitchen / Utility</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('fridge')">Fridge</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('oven')">Oven</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('microwave')">Microwave</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('washing_machine')">Washing Machine</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('radiator')">Radiator</button>
+      </div>
+    </details>
+    <details style="margin-bottom:6px"><summary style="font-size:12px;color:var(--muted);cursor:pointer;padding:2px 0">Misc</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('plant')">Plant</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('table_lamp')">Table Lamp</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('floor_lamp')">Floor Lamp</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('easel')">Easel / Canvas</button>
+        <button class="modal-btn secondary" style="flex:1;min-width:90px;padding:6px 4px;font-size:11px" onclick="addFurniture('rug')">Rug</button>
+      </div>
+    </details>
+    <div id="furnitureList" style="font-size:12px;color:var(--muted);padding:2px 0;margin-top:4px">No furniture placed</div>
+
     </div>
 
   </div>
@@ -1146,1156 +1217,80 @@
 
       </div>
 
-<div class="sub-tabs">
-  <button class="sub-tab active" onclick="filterSubTab('cladding-sub','classic',this)">Classic</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','fc_plank',this)">Fibre Cement</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','fc_plank_smooth',this)">FC Smooth</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','fc_vl_horiz',this)">FC VL Horiz</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','fc_vl_vert',this)">FC VL Vert</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','fc_hit_miss',this)">Hit & Miss</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','composite',this)">Composite</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','shadow_line',this)">Shadow Line</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','board_batten',this)">Board & Batten</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','renders',this)">Renders</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','metal',this)">Metal</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','neo_deluxe',this)">Neo Deluxe</button>
-  <button class="sub-tab" onclick="filterSubTab('cladding-sub','neo_classic',this)">Neo Classic</button>
-</div>
-
-      <div class="sub-content active" data-subtab="cladding-sub-classic">
-
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="vertical_shiplap_cladding" onclick="selectCladding('vertical_shiplap_cladding',this)" title="Vertical Shiplap Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Shiplap</div>
-  </button>
-  <button class="cat-swatch" data-key="charred_grey_thermowood_cladding" onclick="selectCladding('charred_grey_thermowood_cladding',this)" title="Charred Grey Thermowood Cladding — £130/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Charred Grey Thermowood</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_midnight_charcoal_cladding" onclick="selectCladding('horizontal_midnight_charcoal_cladding',this)" title="Horizontal Midnight Charcoal Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Midnight Charcoal</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_light_oak_cladding" onclick="selectCladding('vertical_light_oak_cladding',this)" title="Vertical Light Oak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Light Oak</div>
-  </button>
-  <button class="cat-swatch" data-key="loglap_horizontal_cladding" onclick="selectCladding('loglap_horizontal_cladding',this)" title="Loglap Horizontal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Loglap Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_tongue_and_groove_cladding" onclick="selectCladding('vertical_tongue_and_groove_cladding',this)" title="Vertical Tongue and Groove Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Tongue and Groove</div>
-  </button>
-  <button class="cat-swatch" data-key="cedar_shingles_cladding" onclick="selectCladding('cedar_shingles_cladding',this)" title="Cedar Shingles Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Cedar Shingles</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_charcoal_cladding" onclick="selectCladding('vertical_charcoal_cladding',this)" title="Vertical Charcoal Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Charcoal</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_walnut_cladding" onclick="selectCladding('horizontal_walnut_cladding',this)" title="Horizontal Walnut Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Walnut</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_logroll_treated_cladding" onclick="selectCladding('vertical_logroll_treated_cladding',this)" title="Vertical Logroll Treated Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Logroll Treated</div>
-  </button>
-  <button class="cat-swatch" data-key="stone_01_cladding" onclick="selectCladding('stone_01_cladding',this)" title="Stone 01 Cladding — £300/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Stone 01</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_midnight_charcoal_cladding" onclick="selectCladding('vertical_midnight_charcoal_cladding',this)" title="Vertical Midnight Charcoal Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Midnight Charcoal</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_silver_grey_cladding" onclick="selectCladding('horizontal_silver_grey_cladding',this)" title="Horizontal Silver Grey Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Silver Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_midnight_cladding" onclick="selectCladding('vertical_midnight_cladding',this)" title="Vertical Midnight Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Midnight</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_flint_cladding" onclick="selectCladding('vertical_flint_cladding',this)" title="Vertical Flint Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Flint</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_havana_cladding" onclick="selectCladding('vertical_havana_cladding',this)" title="Vertical Havana Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Havana</div>
-  </button>
-  <button class="cat-swatch" data-key="red_brick_wall_02_cladding" onclick="selectCladding('red_brick_wall_02_cladding',this)" title="Red Brick Wall 02 Cladding — £290/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Red Brick Wall 02</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_corrugated_sheet_cladding" onclick="selectCladding('vertical_corrugated_sheet_cladding',this)" title="Vertical Corrugated Sheet Cladding — £90/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Corrugated Sheet</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_cedar_cladding" onclick="selectCladding('vertical_cedar_cladding',this)" title="Vertical Cedar Cladding — £220/M2">
+  <button class="cat-swatch" data-key="vertical_cedar_cladding" onclick="selectCladding('vertical_cedar_cladding',this)" title="Vertical Cedar — £220/M2">
     <div class="cat-swatch-img"></div>
     <div class="cat-swatch-label">Vertical Cedar</div>
   </button>
-  <button class="cat-swatch" data-key="horizontal_teak_cladding" onclick="selectCladding('horizontal_teak_cladding',this)" title="Horizontal Teak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Teak</div>
-  </button>
-  <button class="cat-swatch" data-key="oak_planks_cladding" onclick="selectCladding('oak_planks_cladding',this)" title="Oak Planks Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Oak Planks</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_iro_cladding" onclick="selectCladding('vertical_iro_cladding',this)" title="Vertical IRO Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical IRO</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_thermopine_cladding" onclick="selectCladding('vertical_thermopine_cladding',this)" title="Vertical Thermopine Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Thermopine</div>
-  </button>
-  <button class="cat-swatch" data-key="shiplap_black_cladding" onclick="selectCladding('shiplap_black_cladding',this)" title="Shiplap Black Cladding — £110/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Shiplap Black</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_loglap_cladding" onclick="selectCladding('vertical_loglap_cladding',this)" title="Vertical Loglap Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Loglap</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_light_oak_cladding" onclick="selectCladding('horizontal_light_oak_cladding',this)" title="Horizontal Light Oak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Light Oak</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_tongue_and_groove_treated_cladding" onclick="selectCladding('vertical_tongue_and_groove_treated_cladding',this)" title="Vertical Tongue and Groove Treated Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Tongue and Groove Treated</div>
-  </button>
-  <button class="cat-swatch" data-key="shiplap_horizontal_cladding" onclick="selectCladding('shiplap_horizontal_cladding',this)" title="Shiplap Horizontal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Shiplap Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="london_stone_cladding" onclick="selectCladding('london_stone_cladding',this)" title="London Stone Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">London Stone</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_larch_cladding" onclick="selectCladding('vertical_larch_cladding',this)" title="Vertical Larch Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Larch</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_shiplap_treated_cladding" onclick="selectCladding('vertical_shiplap_treated_cladding',this)" title="Vertical Shiplap Treated Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Shiplap Treated</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_spiced_oak_cladding" onclick="selectCladding('vertical_spiced_oak_cladding',this)" title="Vertical Spiced Oak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Spiced Oak</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_tongue_and_groove_treated_cladding" onclick="selectCladding('horizontal_tongue_and_groove_treated_cladding',this)" title="Horizontal Tongue and Groove Treated Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Tongue and Groove Treated</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_argent_cladding" onclick="selectCladding('horizontal_argent_cladding',this)" title="Horizontal Argent Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Argent</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_coffee_cladding" onclick="selectCladding('horizontal_coffee_cladding',this)" title="Horizontal Coffee Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Coffee</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_coffee_cladding" onclick="selectCladding('vertical_coffee_cladding',this)" title="Vertical Coffee Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Coffee</div>
-  </button>
-  <button class="cat-swatch" data-key="tongue_and_groove_horizontal_cladding" onclick="selectCladding('tongue_and_groove_horizontal_cladding',this)" title="Tongue and Groove Horizontal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Tongue and Groove Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="red_brick_wall_03_cladding" onclick="selectCladding('red_brick_wall_03_cladding',this)" title="Red Brick Wall 03 Cladding — £290/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Red Brick Wall 03</div>
-  </button>
-  <button class="cat-swatch" data-key="shiplap_white_cladding" onclick="selectCladding('shiplap_white_cladding',this)" title="Shiplap White Cladding — £110/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Shiplap White</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_silver_ash_cladding" onclick="selectCladding('vertical_silver_ash_cladding',this)" title="Vertical Silver Ash Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Silver Ash</div>
-  </button>
-  <button class="cat-swatch" data-key="corten_cladding" onclick="selectCladding('corten_cladding',this)" title="Corten Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Corten</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_smoked_oak_cladding" onclick="selectCladding('horizontal_smoked_oak_cladding',this)" title="Horizontal Smoked Oak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Smoked Oak</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_silver_birch_cladding" onclick="selectCladding('horizontal_silver_birch_cladding',this)" title="Horizontal Silver Birch Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Silver Birch</div>
-  </button>
-  <button class="cat-swatch" data-key="charred_thermowood_cladding" onclick="selectCladding('charred_thermowood_cladding',this)" title="Charred Thermowood Cladding — £130/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Charred Thermowood</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_stone_grey_cladding" onclick="selectCladding('vertical_stone_grey_cladding',this)" title="Vertical Stone Grey Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Stone Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="shiplap_gray_cladding" onclick="selectCladding('shiplap_gray_cladding',this)" title="Shiplap Gray Cladding — £110/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Shiplap Gray</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_argent_cladding" onclick="selectCladding('vertical_argent_cladding',this)" title="Vertical Argent Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Argent</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_smoked_oak_cladding" onclick="selectCladding('vertical_smoked_oak_cladding',this)" title="Vertical Smoked Oak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Smoked Oak</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_walnut_cladding" onclick="selectCladding('vertical_walnut_cladding',this)" title="Vertical Walnut Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Walnut</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_midnight_cladding" onclick="selectCladding('horizontal_midnight_cladding',this)" title="Horizontal Midnight Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Midnight</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_corrugated_sheet_cladding" onclick="selectCladding('horizontal_corrugated_sheet_cladding',this)" title="Horizontal Corrugated Sheet Cladding — £90/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Corrugated Sheet</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_iro_cladding" onclick="selectCladding('horizontal_iro_cladding',this)" title="Horizontal IRO Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal IRO</div>
-  </button>
-  <button class="cat-swatch" data-key="red_brick_wall_01_cladding" onclick="selectCladding('red_brick_wall_01_cladding',this)" title="Red Brick Wall 01 Cladding — £290/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Red Brick Wall 01</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_silver_grey_cladding" onclick="selectCladding('vertical_silver_grey_cladding',this)" title="Vertical Silver Grey Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Silver Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="yellow_brick_cladding" onclick="selectCladding('yellow_brick_cladding',this)" title="Yellow Brick Cladding — £290/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Yellow Brick</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_flint_cladding" onclick="selectCladding('horizontal_flint_cladding',this)" title="Horizontal Flint Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Flint</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_silver_ash_cladding" onclick="selectCladding('horizontal_silver_ash_cladding',this)" title="Horizontal Silver Ash Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Silver Ash</div>
-  </button>
-  <button class="cat-swatch" data-key="stone_02_cladding" onclick="selectCladding('stone_02_cladding',this)" title="Stone 02 Cladding — £300/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Stone 02</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_teak_cladding" onclick="selectCladding('vertical_teak_cladding',this)" title="Vertical Teak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Teak</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_stone_grey_cladding" onclick="selectCladding('horizontal_stone_grey_cladding',this)" title="Horizontal Stone Grey Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Stone Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="shiplap_cedar_cladding" onclick="selectCladding('shiplap_cedar_cladding',this)" title="Shiplap Cedar Cladding — £215/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Shiplap Cedar</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_thermopine_cladding" onclick="selectCladding('horizontal_thermopine_cladding',this)" title="Horizontal Thermopine Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Thermopine</div>
-  </button>
-  <button class="cat-swatch" data-key="charred_black_thermowood_cladding" onclick="selectCladding('charred_black_thermowood_cladding',this)" title="Charred Black Thermowood Cladding — £130/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Charred Black Thermowood</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_charcoal_cladding" onclick="selectCladding('horizontal_charcoal_cladding',this)" title="Horizontal Charcoal Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Charcoal</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_natural_oak_cladding" onclick="selectCladding('horizontal_natural_oak_cladding',this)" title="Horizontal Natural Oak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Natural Oak</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_silver_birch_cladding" onclick="selectCladding('vertical_silver_birch_cladding',this)" title="Vertical Silver Birch Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Silver Birch</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_redwood_cladding" onclick="selectCladding('vertical_redwood_cladding',this)" title="Vertical Redwood Cladding — £110/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Redwood</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_redwood_cladding" onclick="selectCladding('horizontal_redwood_cladding',this)" title="Horizontal Redwood Cladding — £110/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Redwood</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_larch_cladding" onclick="selectCladding('horizontal_larch_cladding',this)" title="Horizontal Larch Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Larch</div>
-  </button>
-  <button class="cat-swatch" data-key="cement_board_cladding" onclick="selectCladding('cement_board_cladding',this)" title="Cement Board Cladding — £150/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Cement Board</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_natural_oak_cladding" onclick="selectCladding('vertical_natural_oak_cladding',this)" title="Vertical Natural Oak Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Natural Oak</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_havana_cladding" onclick="selectCladding('horizontal_havana_cladding',this)" title="Horizontal Havana Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Havana</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_logroll_treated_cladding" onclick="selectCladding('horizontal_logroll_treated_cladding',this)" title="Horizontal Logroll Treated Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Logroll Treated</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_cedar_cladding" onclick="selectCladding('horizontal_cedar_cladding',this)" title="Horizontal Cedar Cladding — £220/M2">
+  <button class="cat-swatch" data-key="horizontal_cedar_cladding" onclick="selectCladding('horizontal_cedar_cladding',this)" title="Horizontal Cedar — £220/M2">
     <div class="cat-swatch-img"></div>
     <div class="cat-swatch-label">Horizontal Cedar</div>
   </button>
-  <button class="cat-swatch" data-key="horizontal_shiplap_treated_cladding" onclick="selectCladding('horizontal_shiplap_treated_cladding',this)" title="Horizontal Shiplap Treated Cladding — £180/M2">
+  <button class="cat-swatch" data-key="vertical_larch_cladding" onclick="selectCladding('vertical_larch_cladding',this)" title="Vertical Larch — £150/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Shiplap Treated</div>
+    <div class="cat-swatch-label">Vertical Larch</div>
   </button>
-  <button class="cat-swatch" data-key="horizontal_spiced_oak_cladding" onclick="selectCladding('horizontal_spiced_oak_cladding',this)" title="Horizontal Spiced Oak Cladding — £264/M2">
+  <button class="cat-swatch" data-key="oak_planks_cladding" onclick="selectCladding('oak_planks_cladding',this)" title="Oak Planks — £150/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Spiced Oak</div>
+    <div class="cat-swatch-label">Oak Planks</div>
   </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-fc_plank">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="arctic_white_fibre_cement_plank_cladding" onclick="selectCladding('arctic_white_fibre_cement_plank_cladding',this)" title="Arctic White Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="vertical_shiplap_cladding" onclick="selectCladding('vertical_shiplap_cladding',this)" title="Vertical Shiplap — £100/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Arctic White Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Vertical Shiplap</div>
   </button>
-  <button class="cat-swatch" data-key="cobble_stone_fibre_cement_plank_cladding" onclick="selectCladding('cobble_stone_fibre_cement_plank_cladding',this)" title="Cobble Stone Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="shiplap_black_cladding" onclick="selectCladding('shiplap_black_cladding',this)" title="Shiplap Black — £110/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Cobble Stone Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Shiplap Black</div>
   </button>
-  <button class="cat-swatch" data-key="pearl_grey_fibre_cement_plank_cladding" onclick="selectCladding('pearl_grey_fibre_cement_plank_cladding',this)" title="Pearl Grey Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="vertical_tongue_and_groove_cladding" onclick="selectCladding('vertical_tongue_and_groove_cladding',this)" title="Vertical Tongue &amp; Groove — £100/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Pearl Grey Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Vertical Tongue &amp; Groove</div>
   </button>
-  <button class="cat-swatch" data-key="rich_espresso_fibre_cement_plank_cladding" onclick="selectCladding('rich_espresso_fibre_cement_plank_cladding',this)" title="Rich Espresso Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="loglap_horizontal_cladding" onclick="selectCladding('loglap_horizontal_cladding',this)" title="Loglap Horizontal — £100/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Rich Espresso Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Loglap Horizontal</div>
   </button>
-  <button class="cat-swatch" data-key="traditional_red_fibre_cement_plank_cladding" onclick="selectCladding('traditional_red_fibre_cement_plank_cladding',this)" title="Traditional Red Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="charred_thermowood_cladding" onclick="selectCladding('charred_thermowood_cladding',this)" title="Charred Thermowood — £130/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Traditional Red Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Charred Thermowood</div>
   </button>
-  <button class="cat-swatch" data-key="woodland_cream_fibre_cement_plank_cladding" onclick="selectCladding('woodland_cream_fibre_cement_plank_cladding',this)" title="Woodland Cream Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="charred_black_thermowood_cladding" onclick="selectCladding('charred_black_thermowood_cladding',this)" title="Charred Black Thermowood — £130/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Woodland Cream Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Charred Black Thermowood</div>
   </button>
-  <button class="cat-swatch" data-key="heathered_moss_fibre_cement_plank_cladding" onclick="selectCladding('heathered_moss_fibre_cement_plank_cladding',this)" title="Heathered Moss Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="strongcore_cladding" onclick="selectCladding('strongcore_cladding',this)" title="Strongcore Composite — £170/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Heathered Moss Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Strongcore Composite</div>
   </button>
-  <button class="cat-swatch" data-key="sail_cloth_fibre_cement_plank_cladding" onclick="selectCladding('sail_cloth_fibre_cement_plank_cladding',this)" title="Sail Cloth Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="neotimber_classic_plank_charcoal_vertical_cladding" onclick="selectCladding('neotimber_classic_plank_charcoal_vertical_cladding',this)" title="NeoTimber Charcoal (Vertical) — £190/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Sail Cloth Fibre Cement Plank</div>
+    <div class="cat-swatch-label">NeoTimber Charcoal</div>
   </button>
-  <button class="cat-swatch" data-key="anthracite_grey_fibre_cement_plank_cladding" onclick="selectCladding('anthracite_grey_fibre_cement_plank_cladding',this)" title="Anthracite Grey Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="neotimber_classic_plank_grey_vertical_cladding" onclick="selectCladding('neotimber_classic_plank_grey_vertical_cladding',this)" title="NeoTimber Grey (Vertical) — £190/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Anthracite Grey Fibre Cement Plank</div>
+    <div class="cat-swatch-label">NeoTimber Grey</div>
   </button>
-  <button class="cat-swatch" data-key="khaki_brown_fibre_cement_plank_cladding" onclick="selectCladding('khaki_brown_fibre_cement_plank_cladding',this)" title="Khaki Brown Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="anthracite_vertical_metal_cladding" onclick="selectCladding('anthracite_vertical_metal_cladding',this)" title="Anthracite Metal (Vertical) — £100/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Khaki Brown Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Anthracite Metal</div>
   </button>
-  <button class="cat-swatch" data-key="soft_green_fibre_cement_plank_cladding" onclick="selectCladding('soft_green_fibre_cement_plank_cladding',this)" title="Soft Green Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="black_vertical_metal_cladding" onclick="selectCladding('black_vertical_metal_cladding',this)" title="Black Metal (Vertical) — £100/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Soft Green Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Black Metal</div>
   </button>
-  <button class="cat-swatch" data-key="grey_slate_fibre_cement_plank_cladding" onclick="selectCladding('grey_slate_fibre_cement_plank_cladding',this)" title="Grey Slate Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="corten_cladding" onclick="selectCladding('corten_cladding',this)" title="Corten Steel — £180/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Grey Slate Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Corten Steel</div>
   </button>
-  <button class="cat-swatch" data-key="boothbay_blue_fibre_cement_plank_cladding" onclick="selectCladding('boothbay_blue_fibre_cement_plank_cladding',this)" title="Boothbay Blue Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="stone_01_cladding" onclick="selectCladding('stone_01_cladding',this)" title="Stone — £300/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Boothbay Blue Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Stone</div>
   </button>
-  <button class="cat-swatch" data-key="timber_bark_fibre_cement_plank_cladding" onclick="selectCladding('timber_bark_fibre_cement_plank_cladding',this)" title="Timber Bark Fibre Cement Plank Cladding — £190/M2">
+  <button class="cat-swatch" data-key="red_brick_wall_01_cladding" onclick="selectCladding('red_brick_wall_01_cladding',this)" title="Red Brick — £290/M2">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Timber Bark Fibre Cement Plank</div>
-  </button>
-  <button class="cat-swatch" data-key="monterey_taupe_fibre_cement_plank_cladding" onclick="selectCladding('monterey_taupe_fibre_cement_plank_cladding',this)" title="Monterey Taupe Fibre Cement Plank Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Monterey Taupe Fibre Cement Plank</div>
-  </button>
-  <button class="cat-swatch" data-key="chestnut_brown_fibre_cement_plank_cladding" onclick="selectCladding('chestnut_brown_fibre_cement_plank_cladding',this)" title="Chestnut Brown Fibre Cement Plank Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Chestnut Brown Fibre Cement Plank</div>
-  </button>
-  <button class="cat-swatch" data-key="midnight_black_fibre_cement_plank_cladding" onclick="selectCladding('midnight_black_fibre_cement_plank_cladding',this)" title="Midnight Black Fibre Cement Plank Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Midnight Black Fibre Cement Plank</div>
-  </button>
-  <button class="cat-swatch" data-key="iron_grey_fibre_cement_plank_cladding" onclick="selectCladding('iron_grey_fibre_cement_plank_cladding',this)" title="Iron Grey Fibre Cement Plank Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Iron Grey Fibre Cement Plank</div>
-  </button>
-  <button class="cat-swatch" data-key="light_mist_fibre_cement_plank_cladding" onclick="selectCladding('light_mist_fibre_cement_plank_cladding',this)" title="Light Mist Fibre Cement Plank Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Light Mist Fibre Cement Plank</div>
-  </button>
-  <button class="cat-swatch" data-key="monterey_sage_fibre_cement_plank_cladding" onclick="selectCladding('monterey_sage_fibre_cement_plank_cladding',this)" title="Monterey Sage Fibre Cement Plank Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Monterey Sage Fibre Cement Plank</div>
-  </button>
-  <button class="cat-swatch" data-key="evening_blue_fibre_cement_plank_cladding" onclick="selectCladding('evening_blue_fibre_cement_plank_cladding',this)" title="Evening Blue Fibre Cement Plank Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Evening Blue Fibre Cement Plank</div>
+    <div class="cat-swatch-label">Red Brick</div>
   </button>
 </div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-fc_plank_smooth">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="chestnut_brown_fibre_cement_plank_smooth_cladding" onclick="selectCladding('chestnut_brown_fibre_cement_plank_smooth_cladding',this)" title="Chestnut Brown Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Chestnut Brown Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="pearl_grey_fibre_cement_plank_smooth_cladding" onclick="selectCladding('pearl_grey_fibre_cement_plank_smooth_cladding',this)" title="Pearl Grey Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Pearl Grey Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="heathered_moss_fibre_cement_plank_smooth_cladding" onclick="selectCladding('heathered_moss_fibre_cement_plank_smooth_cladding',this)" title="Heathered Moss Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Heathered Moss Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="soft_green_fibre_cement_plank_smooth_cladding" onclick="selectCladding('soft_green_fibre_cement_plank_smooth_cladding',this)" title="Soft Green Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Soft Green Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="rich_espresso_fibre_cement_plank_smooth_cladding" onclick="selectCladding('rich_espresso_fibre_cement_plank_smooth_cladding',this)" title="Rich Espresso Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Rich Espresso Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="timber_bark_fibre_cement_plank_smooth_cladding" onclick="selectCladding('timber_bark_fibre_cement_plank_smooth_cladding',this)" title="Timber Bark Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Timber Bark Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="khaki_brown_fibre_cement_plank_smooth_cladding" onclick="selectCladding('khaki_brown_fibre_cement_plank_smooth_cladding',this)" title="Khaki Brown Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Khaki Brown Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="iron_grey_fibre_cement_plank_smooth_cladding" onclick="selectCladding('iron_grey_fibre_cement_plank_smooth_cladding',this)" title="Iron Grey Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Iron Grey Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="arctic_white_fibre_cement_plank_smooth_cladding" onclick="selectCladding('arctic_white_fibre_cement_plank_smooth_cladding',this)" title="Arctic White Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Arctic White Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="evening_blue_fibre_cement_plank_smooth_cladding" onclick="selectCladding('evening_blue_fibre_cement_plank_smooth_cladding',this)" title="Evening Blue Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Evening Blue Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="cobble_stone_fibre_cement_plank_smooth_cladding" onclick="selectCladding('cobble_stone_fibre_cement_plank_smooth_cladding',this)" title="Cobble Stone Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Cobble Stone Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="woodland_cream_fibre_cement_plank_smooth_cladding" onclick="selectCladding('woodland_cream_fibre_cement_plank_smooth_cladding',this)" title="Woodland Cream Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Woodland Cream Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="traditional_red_fibre_cement_plank_smooth_cladding" onclick="selectCladding('traditional_red_fibre_cement_plank_smooth_cladding',this)" title="Traditional Red Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Traditional Red Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="anthracite_grey_fibre_cement_plank_smooth_cladding" onclick="selectCladding('anthracite_grey_fibre_cement_plank_smooth_cladding',this)" title="Anthracite Grey Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Anthracite Grey Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="boothbay_blue_fibre_cement_plank_smooth_cladding" onclick="selectCladding('boothbay_blue_fibre_cement_plank_smooth_cladding',this)" title="Boothbay Blue Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Boothbay Blue Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="midnight_black_fibre_cement_plank_smooth_cladding" onclick="selectCladding('midnight_black_fibre_cement_plank_smooth_cladding',this)" title="Midnight Black Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Midnight Black Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="monterey_taupe_fibre_cement_plank_smooth_cladding" onclick="selectCladding('monterey_taupe_fibre_cement_plank_smooth_cladding',this)" title="Monterey Taupe Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Monterey Taupe Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="light_mist_fibre_cement_plank_smooth_cladding" onclick="selectCladding('light_mist_fibre_cement_plank_smooth_cladding',this)" title="Light Mist Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Light Mist Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="mountain_sage_fibre_cement_plank_smooth_cladding" onclick="selectCladding('mountain_sage_fibre_cement_plank_smooth_cladding',this)" title="Mountain Sage Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Mountain Sage Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="sail_cloth_fibre_cement_plank_smooth_cladding" onclick="selectCladding('sail_cloth_fibre_cement_plank_smooth_cladding',this)" title="Sail Cloth Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Sail Cloth Fibre Cement Plank Smooth</div>
-  </button>
-  <button class="cat-swatch" data-key="grey_slate_fibre_cement_plank_smooth_cladding" onclick="selectCladding('grey_slate_fibre_cement_plank_smooth_cladding',this)" title="Grey Slate Fibre Cement Plank Smooth Cladding — £180/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Grey Slate Fibre Cement Plank Smooth</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-fc_vl_horiz">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="horizontal_vl_plank_light_mist_cladding" onclick="selectCladding('horizontal_vl_plank_light_mist_cladding',this)" title="Horizontal VL Plank Light Mist Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Light Mist</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_sail_cloth_cladding" onclick="selectCladding('horizontal_vl_plank_sail_cloth_cladding',this)" title="Horizontal VL Plank Sail Cloth Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Sail Cloth</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_arctic_white_cladding" onclick="selectCladding('horizontal_vl_plank_arctic_white_cladding',this)" title="Horizontal VL Plank Arctic White Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Arctic White</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_midnight_black_cladding" onclick="selectCladding('horizontal_vl_plank_midnight_black_cladding',this)" title="Horizontal VL Plank Midnight Black Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Midnight Black</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_timber_bark_cladding" onclick="selectCladding('horizontal_vl_plank_timber_bark_cladding',this)" title="Horizontal VL Plank Timber Bark Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Timber Bark</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_anthracite_grey_cladding" onclick="selectCladding('horizontal_vl_plank_anthracite_grey_cladding',this)" title="Horizontal VL Plank Anthracite Grey Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Anthracite Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_monterey_taupe_cladding" onclick="selectCladding('horizontal_vl_plank_monterey_taupe_cladding',this)" title="Horizontal VL Plank Monterey Taupe Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Monterey Taupe</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_evening_blue_cladding" onclick="selectCladding('horizontal_vl_plank_evening_blue_cladding',this)" title="Horizontal VL Plank Evening Blue Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Evening Blue</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_traditional_red_cladding" onclick="selectCladding('horizontal_vl_plank_traditional_red_cladding',this)" title="Horizontal VL Plank Traditional Red Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Traditional Red</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_grey_slate_cladding" onclick="selectCladding('horizontal_vl_plank_grey_slate_cladding',this)" title="Horizontal VL Plank Grey Slate Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Grey Slate</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_pearl_grey_cladding" onclick="selectCladding('horizontal_vl_plank_pearl_grey_cladding',this)" title="Horizontal VL Plank Pearl Grey Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Pearl Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_chestnut_brown_cladding" onclick="selectCladding('horizontal_vl_plank_chestnut_brown_cladding',this)" title="Horizontal VL Plank Chestnut Brown Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Chestnut Brown</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_mountain_sage_cladding" onclick="selectCladding('horizontal_vl_plank_mountain_sage_cladding',this)" title="Horizontal VL Plank Mountain Sage Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Mountain Sage</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_heathered_moss_cladding" onclick="selectCladding('horizontal_vl_plank_heathered_moss_cladding',this)" title="Horizontal VL Plank Heathered Moss Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Heathered Moss</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_iron_grey_cladding" onclick="selectCladding('horizontal_vl_plank_iron_grey_cladding',this)" title="Horizontal VL Plank Iron Grey Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Iron Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_soft_green_cladding" onclick="selectCladding('horizontal_vl_plank_soft_green_cladding',this)" title="Horizontal VL Plank Soft Green Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Soft Green</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_cobble_stone_cladding" onclick="selectCladding('horizontal_vl_plank_cobble_stone_cladding',this)" title="Horizontal VL Plank Cobble Stone Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Cobble Stone</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_khaki_brown_cladding" onclick="selectCladding('horizontal_vl_plank_khaki_brown_cladding',this)" title="Horizontal VL Plank Khaki Brown Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Khaki Brown</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_rich_espresso_cladding" onclick="selectCladding('horizontal_vl_plank_rich_espresso_cladding',this)" title="Horizontal VL Plank Rich Espresso Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Rich Espresso</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_vl_plank_woodland_cream_cladding" onclick="selectCladding('horizontal_vl_plank_woodland_cream_cladding',this)" title="Horizontal VL Plank Woodland Cream Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal VL Plank Woodland Cream</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-fc_vl_vert">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="vertical_vl_plank_heathered_moss_cladding" onclick="selectCladding('vertical_vl_plank_heathered_moss_cladding',this)" title="Vertical VL Plank Heathered Moss Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Heathered Moss</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_woodland_cream_cladding" onclick="selectCladding('vertical_vl_plank_woodland_cream_cladding',this)" title="Vertical VL Plank Woodland Cream Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Woodland Cream</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_pearl_grey_cladding" onclick="selectCladding('vertical_vl_plank_pearl_grey_cladding',this)" title="Vertical VL Plank Pearl Grey Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Pearl Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_traditional_red_cladding" onclick="selectCladding('vertical_vl_plank_traditional_red_cladding',this)" title="Vertical VL Plank Traditional Red Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Traditional Red</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_khaki_brown_cladding" onclick="selectCladding('vertical_vl_plank_khaki_brown_cladding',this)" title="Vertical VL Plank Khaki Brown Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Khaki Brown</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_cobble_stone_cladding" onclick="selectCladding('vertical_vl_plank_cobble_stone_cladding',this)" title="Vertical VL Plank Cobble Stone Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Cobble Stone</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_evening_blue_cladding" onclick="selectCladding('vertical_vl_plank_evening_blue_cladding',this)" title="Vertical VL Plank Evening Blue Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Evening Blue</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_arctic_white_cladding" onclick="selectCladding('vertical_vl_plank_arctic_white_cladding',this)" title="Vertical VL Plank Arctic White Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Arctic White</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_chestnut_brown_cladding" onclick="selectCladding('vertical_vl_plank_chestnut_brown_cladding',this)" title="Vertical VL Plank Chestnut Brown Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Chestnut Brown</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_timber_bark_cladding" onclick="selectCladding('vertical_vl_plank_timber_bark_cladding',this)" title="Vertical VL Plank Timber Bark Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Timber Bark</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_sail_cloth_cladding" onclick="selectCladding('vertical_vl_plank_sail_cloth_cladding',this)" title="Vertical VL Plank Sail Cloth Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Sail Cloth</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_grey_slate_cladding" onclick="selectCladding('vertical_vl_plank_grey_slate_cladding',this)" title="Vertical VL Plank Grey Slate Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Grey Slate</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_soft_green_cladding" onclick="selectCladding('vertical_vl_plank_soft_green_cladding',this)" title="Vertical VL Plank Soft Green Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Soft Green</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_anthracite_grey_cladding" onclick="selectCladding('vertical_vl_plank_anthracite_grey_cladding',this)" title="Vertical VL Plank Anthracite Grey Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Anthracite Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_monterey_taupe_cladding" onclick="selectCladding('vertical_vl_plank_monterey_taupe_cladding',this)" title="Vertical VL Plank Monterey Taupe Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Monterey Taupe</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_mountain_sage_cladding" onclick="selectCladding('vertical_vl_plank_mountain_sage_cladding',this)" title="Vertical VL Plank Mountain Sage Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Mountain Sage</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_iron_grey_cladding" onclick="selectCladding('vertical_vl_plank_iron_grey_cladding',this)" title="Vertical VL Plank Iron Grey Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Iron Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_midnight_black_cladding" onclick="selectCladding('vertical_vl_plank_midnight_black_cladding',this)" title="Vertical VL Plank Midnight Black Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Midnight Black</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_rich_espresso_cladding" onclick="selectCladding('vertical_vl_plank_rich_espresso_cladding',this)" title="Vertical VL Plank Rich Espresso Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Rich Espresso</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_vl_plank_light_mist_cladding" onclick="selectCladding('vertical_vl_plank_light_mist_cladding',this)" title="Vertical VL Plank Light Mist Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical VL Plank Light Mist</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-fc_hit_miss">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="hit_miss_light_mist_cladding" onclick="selectCladding('hit_miss_light_mist_cladding',this)" title="Hit & Miss Light Mist Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Light Mist</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_timber_bark_cladding" onclick="selectCladding('hit_miss_timber_bark_cladding',this)" title="Hit & Miss Timber Bark Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Timber Bark</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_chestnut_brown_cladding" onclick="selectCladding('hit_miss_chestnut_brown_cladding',this)" title="Hit & Miss Chestnut Brown Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Chestnut Brown</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_arctic_white_cladding" onclick="selectCladding('hit_miss_arctic_white_cladding',this)" title="Hit & Miss Arctic White Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Arctic White</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_grey_slate_cladding" onclick="selectCladding('hit_miss_grey_slate_cladding',this)" title="Hit & Miss Grey Slate Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Grey Slate</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_khaki_brown_cladding" onclick="selectCladding('hit_miss_khaki_brown_cladding',this)" title="Hit & Miss Khaki Brown Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Khaki Brown</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_pearl_grey_cladding" onclick="selectCladding('hit_miss_pearl_grey_cladding',this)" title="Hit & Miss Pearl Grey Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Pearl Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_heathered_moss_cladding" onclick="selectCladding('hit_miss_heathered_moss_cladding',this)" title="Hit & Miss Heathered Moss Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Heathered Moss</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_iron_grey_cladding" onclick="selectCladding('hit_miss_iron_grey_cladding',this)" title="Hit & Miss Iron Grey Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Iron Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_monterey_taupe_cladding" onclick="selectCladding('hit_miss_monterey_taupe_cladding',this)" title="Hit & Miss Monterey Taupe Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Monterey Taupe</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_anthracite_grey_cladding" onclick="selectCladding('hit_miss_anthracite_grey_cladding',this)" title="Hit & Miss Anthracite Grey Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Anthracite Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_woodland_cream_cladding" onclick="selectCladding('hit_miss_woodland_cream_cladding',this)" title="Hit & Miss Woodland Cream Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Woodland Cream</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_traditional_red_cladding" onclick="selectCladding('hit_miss_traditional_red_cladding',this)" title="Hit & Miss Traditional Red Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Traditional Red</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_cobble_stone_cladding" onclick="selectCladding('hit_miss_cobble_stone_cladding',this)" title="Hit & Miss Cobble Stone Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Cobble Stone</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_rich_espresso_cladding" onclick="selectCladding('hit_miss_rich_espresso_cladding',this)" title="Hit & Miss Rich Espresso Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Rich Espresso</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_midnight_black_cladding" onclick="selectCladding('hit_miss_midnight_black_cladding',this)" title="Hit & Miss Midnight Black Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Midnight Black</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_evening_blue_cladding" onclick="selectCladding('hit_miss_evening_blue_cladding',this)" title="Hit & Miss Evening Blue Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Evening Blue</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_soft_green_cladding" onclick="selectCladding('hit_miss_soft_green_cladding',this)" title="Hit & Miss Soft Green Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Soft Green</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_sail_cloth_cladding" onclick="selectCladding('hit_miss_sail_cloth_cladding',this)" title="Hit & Miss Sail Cloth Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Sail Cloth</div>
-  </button>
-  <button class="cat-swatch" data-key="hit_miss_mountain_sage_cladding" onclick="selectCladding('hit_miss_mountain_sage_cladding',this)" title="Hit & Miss Mountain Sage Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Hit & Miss Mountain Sage</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-composite">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="strongcore_cladding" onclick="selectCladding('strongcore_cladding',this)" title="Strongcore Cladding — £170/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Strongcore</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-shadow_line">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="horizontal_golden_oak_shadow_line_cladding" onclick="selectCladding('horizontal_golden_oak_shadow_line_cladding',this)" title="Horizontal Golden Oak Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Golden Oak Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_sage_green_shadow_line_cladding" onclick="selectCladding('vertical_sage_green_shadow_line_cladding',this)" title="Vertical Sage Green Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Sage Green Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_golden_oak_shadow_line_cladding" onclick="selectCladding('vertical_golden_oak_shadow_line_cladding',this)" title="Vertical Golden Oak Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Golden Oak Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_burnt_cedar_shadow_line_cladding" onclick="selectCladding('horizontal_burnt_cedar_shadow_line_cladding',this)" title="Horizontal Burnt Cedar Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Burnt Cedar Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_salt_blue_shadow_line_cladding" onclick="selectCladding('vertical_salt_blue_shadow_line_cladding',this)" title="Vertical Salt Blue Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Salt Blue Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_smoked_oak_shadow_line_cladding" onclick="selectCladding('vertical_smoked_oak_shadow_line_cladding',this)" title="Vertical Smoked Oak Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Smoked Oak Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_smoked_oak_shadow_line_cladding" onclick="selectCladding('horizontal_smoked_oak_shadow_line_cladding',this)" title="Horizontal Smoked Oak Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Smoked Oak Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_limed_oak_shadow_line_cladding" onclick="selectCladding('horizontal_limed_oak_shadow_line_cladding',this)" title="Horizontal Limed Oak Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Limed Oak Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_salt_blue_shadow_line_cladding" onclick="selectCladding('horizontal_salt_blue_shadow_line_cladding',this)" title="Horizontal Salt Blue Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Salt Blue Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_limed_oak_shadow_line_cladding" onclick="selectCladding('vertical_limed_oak_shadow_line_cladding',this)" title="Vertical Limed Oak Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Limed Oak Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_antique_oak_shadow_line_cladding" onclick="selectCladding('vertical_antique_oak_shadow_line_cladding',this)" title="Vertical Antique Oak Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Antique Oak Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="vertical_burnt_cedar_shadow_line_cladding" onclick="selectCladding('vertical_burnt_cedar_shadow_line_cladding',this)" title="Vertical Burnt Cedar Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vertical Burnt Cedar Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_sage_green_shadow_line_cladding" onclick="selectCladding('horizontal_sage_green_shadow_line_cladding',this)" title="Horizontal Sage Green Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Sage Green Shadow Line</div>
-  </button>
-  <button class="cat-swatch" data-key="horizontal_antique_oak_shadow_line_cladding" onclick="selectCladding('horizontal_antique_oak_shadow_line_cladding',this)" title="Horizontal Antique Oak Shadow Line Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Horizontal Antique Oak Shadow Line</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-board_batten">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="limed_oak_board_and_batten_cladding" onclick="selectCladding('limed_oak_board_and_batten_cladding',this)" title="Limed Oak Board And Batten Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Limed Oak Board And Batten</div>
-  </button>
-  <button class="cat-swatch" data-key="jarrah_board_and_batten_cladding" onclick="selectCladding('jarrah_board_and_batten_cladding',this)" title="Jarrah Board And Batten Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Jarrah Board And Batten</div>
-  </button>
-  <button class="cat-swatch" data-key="smoked_oak_board_and_batten_cladding" onclick="selectCladding('smoked_oak_board_and_batten_cladding',this)" title="Smoked Oak Board And Batten Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Smoked Oak Board And Batten</div>
-  </button>
-  <button class="cat-swatch" data-key="golden_oak_board_and_batten_cladding" onclick="selectCladding('golden_oak_board_and_batten_cladding',this)" title="Golden Oak Board And Batten Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Golden Oak Board And Batten</div>
-  </button>
-  <button class="cat-swatch" data-key="antique_oak_board_and_batten_cladding" onclick="selectCladding('antique_oak_board_and_batten_cladding',this)" title="Antique Oak Board And Batten Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Antique Oak Board And Batten</div>
-  </button>
-  <button class="cat-swatch" data-key="burnt_cedar_board_and_batten_cladding" onclick="selectCladding('burnt_cedar_board_and_batten_cladding',this)" title="Burnt Cedar Board And Batten Cladding — £264/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Burnt Cedar Board And Batten</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-renders">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="causeway_render" onclick="selectCladding('causeway_render',this)" title="Causeway Render — £160/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Causeway Render</div>
-  </button>
-  <button class="cat-swatch" data-key="mink_render" onclick="selectCladding('mink_render',this)" title="Mink Render — £160/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Mink Render</div>
-  </button>
-  <button class="cat-swatch" data-key="limestone_white_render" onclick="selectCladding('limestone_white_render',this)" title="Limestone White Render — £160/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Limestone White Render</div>
-  </button>
-  <button class="cat-swatch" data-key="white_render" onclick="selectCladding('white_render',this)" title="White Render — £160/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">White Render</div>
-  </button>
-  <button class="cat-swatch" data-key="granite_render" onclick="selectCladding('granite_render',this)" title="Granite Render — £160/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Granite Render</div>
-  </button>
-  <button class="cat-swatch" data-key="mocha_render" onclick="selectCladding('mocha_render',this)" title="Mocha Render — £160/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Mocha Render</div>
-  </button>
-  <button class="cat-swatch" data-key="blue_render" onclick="selectCladding('blue_render',this)" title="Blue Render — £160/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Blue Render</div>
-  </button>
-  <button class="cat-swatch" data-key="grey_render" onclick="selectCladding('grey_render',this)" title="Grey Render — £160/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Grey Render</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-metal">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="slate_blue_horizontal_metal_cladding" onclick="selectCladding('slate_blue_horizontal_metal_cladding',this)" title="Slate Blue Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Slate Blue Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="juniper_green_horizontal_metal_cladding" onclick="selectCladding('juniper_green_horizontal_metal_cladding',this)" title="Juniper Green Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Juniper Green Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="pure_white_horizontal_metal_cladding" onclick="selectCladding('pure_white_horizontal_metal_cladding',this)" title="Pure White Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Pure White Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="moorland_green_vertical_metal_cladding" onclick="selectCladding('moorland_green_vertical_metal_cladding',this)" title="Moorland Green Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Moorland Green Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="anthracite_vertical_metal_cladding" onclick="selectCladding('anthracite_vertical_metal_cladding',this)" title="Anthracite Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Anthracite Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="black_vertical_metal_cladding" onclick="selectCladding('black_vertical_metal_cladding',this)" title="Black Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Black Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="olive_green_vertical_metal_cladding" onclick="selectCladding('olive_green_vertical_metal_cladding',this)" title="Olive Green Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Olive Green Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="vandyke_brown_vertical_metal_cladding" onclick="selectCladding('vandyke_brown_vertical_metal_cladding',this)" title="Vandyke Brown Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vandyke Brown Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="black_horizontal_metal_cladding" onclick="selectCladding('black_horizontal_metal_cladding',this)" title="Black Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Black Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="terracotta_horizontal_metal_cladding" onclick="selectCladding('terracotta_horizontal_metal_cladding',this)" title="Terracotta Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Terracotta Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="merlin_grey_horizontal_metal_cladding" onclick="selectCladding('merlin_grey_horizontal_metal_cladding',this)" title="Merlin Grey Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Merlin Grey Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="slate_blue_vertical_metal_cladding" onclick="selectCladding('slate_blue_vertical_metal_cladding',this)" title="Slate Blue Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Slate Blue Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="vandyke_brown_horizontal_metal_cladding" onclick="selectCladding('vandyke_brown_horizontal_metal_cladding',this)" title="Vandyke Brown Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Vandyke Brown Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="juniper_green_vertical_metal_cladding" onclick="selectCladding('juniper_green_vertical_metal_cladding',this)" title="Juniper Green Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Juniper Green Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="moorland_green_horizontal_metal_cladding" onclick="selectCladding('moorland_green_horizontal_metal_cladding',this)" title="Moorland Green Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Moorland Green Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="goosewing_grey_vertical_metal_cladding" onclick="selectCladding('goosewing_grey_vertical_metal_cladding',this)" title="Goosewing Grey Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Goosewing Grey Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="pure_white_vertical_metal_cladding" onclick="selectCladding('pure_white_vertical_metal_cladding',this)" title="Pure White Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Pure White Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="terracotta_vertical_metal_cladding" onclick="selectCladding('terracotta_vertical_metal_cladding',this)" title="Terracotta Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Terracotta Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="goosewing_grey_horizontal_metal_cladding" onclick="selectCladding('goosewing_grey_horizontal_metal_cladding',this)" title="Goosewing Grey Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Goosewing Grey Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="merlin_grey_vertical_metal_cladding" onclick="selectCladding('merlin_grey_vertical_metal_cladding',this)" title="Merlin Grey Vertical Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Merlin Grey Vertical Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="anthracite_horizontal_metal_cladding" onclick="selectCladding('anthracite_horizontal_metal_cladding',this)" title="Anthracite Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Anthracite Horizontal Metal</div>
-  </button>
-  <button class="cat-swatch" data-key="olive_green_horizontal_metal_cladding" onclick="selectCladding('olive_green_horizontal_metal_cladding',this)" title="Olive Green Horizontal Metal Cladding — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Olive Green Horizontal Metal</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-neo_deluxe">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_silver_birch_cladding" onclick="selectCladding('neotimber_deluxe_plank_silver_birch_cladding',this)" title="NeoTimber Deluxe Plank Silver Birch Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Silver Birch</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_ash_white_cladding" onclick="selectCladding('neotimber_deluxe_plank_ash_white_cladding',this)" title="NeoTimber Deluxe Plank Ash White Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Ash White</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_oak_vertical_cladding" onclick="selectCladding('neotimber_deluxe_plank_oak_vertical_cladding',this)" title="NeoTimber Deluxe Plank Oak Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Oak Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_teak_cladding" onclick="selectCladding('neotimber_deluxe_plank_teak_cladding',this)" title="NeoTimber Deluxe Plank Teak Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Teak</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_ash_white_vertical_cladding" onclick="selectCladding('neotimber_deluxe_plank_ash_white_vertical_cladding',this)" title="NeoTimber Deluxe Plank Ash White Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Ash White Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_grey_vertical_cladding" onclick="selectCladding('neotimber_deluxe_plank_grey_vertical_cladding',this)" title="NeoTimber Deluxe Plank Grey Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Grey Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_chocolate_cladding" onclick="selectCladding('neotimber_deluxe_plank_chocolate_cladding',this)" title="NeoTimber Deluxe Plank Chocolate Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Chocolate</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_chocolate_horizontal_cladding" onclick="selectCladding('neotimber_deluxe_plank_chocolate_horizontal_cladding',this)" title="NeoTimber Deluxe Plank Chocolate Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Chocolate Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_silver_birch_horizontal_cladding" onclick="selectCladding('neotimber_deluxe_plank_silver_birch_horizontal_cladding',this)" title="NeoTimber Deluxe Plank Silver Birch Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Silver Birch Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_teak_horizontal_cladding" onclick="selectCladding('neotimber_deluxe_plank_teak_horizontal_cladding',this)" title="NeoTimber Deluxe Plank Teak Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Teak Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_silver_birch_vertical_cladding" onclick="selectCladding('neotimber_deluxe_plank_silver_birch_vertical_cladding',this)" title="NeoTimber Deluxe Plank Silver Birch Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Silver Birch Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_grey_cladding" onclick="selectCladding('neotimber_deluxe_plank_grey_cladding',this)" title="NeoTimber Deluxe Plank Grey Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Grey</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_oak_horizontal_cladding" onclick="selectCladding('neotimber_deluxe_plank_oak_horizontal_cladding',this)" title="NeoTimber Deluxe Plank Oak Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Oak Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_charcoal_cladding" onclick="selectCladding('neotimber_deluxe_plank_charcoal_cladding',this)" title="NeoTimber Deluxe Plank Charcoal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Charcoal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_antique_cladding" onclick="selectCladding('neotimber_deluxe_plank_antique_cladding',this)" title="NeoTimber Deluxe Plank Antique Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Antique</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_charcoal_horizontal_cladding" onclick="selectCladding('neotimber_deluxe_plank_charcoal_horizontal_cladding',this)" title="NeoTimber Deluxe Plank Charcoal Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Charcoal Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_ash_white_horizontal_cladding" onclick="selectCladding('neotimber_deluxe_plank_ash_white_horizontal_cladding',this)" title="NeoTimber Deluxe Plank Ash White Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Ash White Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_oak_cladding" onclick="selectCladding('neotimber_deluxe_plank_oak_cladding',this)" title="NeoTimber Deluxe Plank Oak Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Oak</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_chocolate_vertical_cladding" onclick="selectCladding('neotimber_deluxe_plank_chocolate_vertical_cladding',this)" title="NeoTimber Deluxe Plank Chocolate Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Chocolate Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_charcoal_vertical_cladding" onclick="selectCladding('neotimber_deluxe_plank_charcoal_vertical_cladding',this)" title="NeoTimber Deluxe Plank Charcoal Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Charcoal Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_antique_horizontal_cladding" onclick="selectCladding('neotimber_deluxe_plank_antique_horizontal_cladding',this)" title="NeoTimber Deluxe Plank Antique Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Antique Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_teak_vertical_cladding" onclick="selectCladding('neotimber_deluxe_plank_teak_vertical_cladding',this)" title="NeoTimber Deluxe Plank Teak Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Teak Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_grey_horizontal_cladding" onclick="selectCladding('neotimber_deluxe_plank_grey_horizontal_cladding',this)" title="NeoTimber Deluxe Plank Grey Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Grey Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_deluxe_plank_antique_vertical_cladding" onclick="selectCladding('neotimber_deluxe_plank_antique_vertical_cladding',this)" title="NeoTimber Deluxe Plank Antique Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Deluxe Plank Antique Vertical</div>
-  </button>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="cladding-sub-neo_classic">
-
-<div class="swatch-grid">
-  <button class="cat-swatch" data-key="neotimber_classic_plank_grey_horizontal_cladding" onclick="selectCladding('neotimber_classic_plank_grey_horizontal_cladding',this)" title="NeoTimber Classic Plank Grey Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Classic Plank Grey Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_classic_plank_chocolate_vertical_cladding" onclick="selectCladding('neotimber_classic_plank_chocolate_vertical_cladding',this)" title="NeoTimber Classic Plank Chocolate Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Classic Plank Chocolate Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_classic_plank_grey_vertical_cladding" onclick="selectCladding('neotimber_classic_plank_grey_vertical_cladding',this)" title="NeoTimber Classic Plank Grey Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Classic Plank Grey Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_classic_plank_teak_horizontal_cladding" onclick="selectCladding('neotimber_classic_plank_teak_horizontal_cladding',this)" title="NeoTimber Classic Plank Teak Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Classic Plank Teak Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_classic_plank_charcoal_horizontal_cladding" onclick="selectCladding('neotimber_classic_plank_charcoal_horizontal_cladding',this)" title="NeoTimber Classic Plank Charcoal Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Classic Plank Charcoal Horizontal</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_classic_plank_charcoal_vertical_cladding" onclick="selectCladding('neotimber_classic_plank_charcoal_vertical_cladding',this)" title="NeoTimber Classic Plank Charcoal Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Classic Plank Charcoal Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_classic_plank_teak_vertical_cladding" onclick="selectCladding('neotimber_classic_plank_teak_vertical_cladding',this)" title="NeoTimber Classic Plank Teak Vertical Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Classic Plank Teak Vertical</div>
-  </button>
-  <button class="cat-swatch" data-key="neotimber_classic_plank_chocolate_horizontal_cladding" onclick="selectCladding('neotimber_classic_plank_chocolate_horizontal_cladding',this)" title="NeoTimber Classic Plank Chocolate Horizontal Cladding — £190/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">NeoTimber Classic Plank Chocolate Horizontal</div>
-  </button>
-</div>
-
-      </div>
 
     </div>
 
@@ -3597,6 +2592,61 @@
   renderDesignsList();
   updatePaletteUI();
   stateHistory.push(); // capture baseline — makes the first user action undoable
+</script>
+
+<!-- ── Context Menu ─────────────────────────────────────────── -->
+<div id="ctxMenu" style="
+  display:none; position:fixed; z-index:9999;
+  background:#1e1e1e; border:1px solid #444; border-radius:8px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.5);
+  min-width:170px; overflow:hidden;
+  font-family:'DM Sans',sans-serif; font-size:13px; color:#eee;">
+</div>
+<style>
+  .ctx-item {
+    padding:9px 16px; cursor:pointer; display:flex; align-items:center; gap:9px;
+    transition:background 0.1s;
+  }
+  .ctx-item:hover { background:#2e2e2e; }
+  .ctx-item.danger { color:#ff6b6b; }
+  .ctx-item .ctx-icon { font-size:15px; width:18px; text-align:center; }
+  .ctx-item.disabled { color:#666; cursor:default; font-style:italic; }
+  .ctx-item.disabled:hover { background:transparent; }
+  .ctx-sep { height:1px; background:#333; margin:3px 0; }
+</style>
+<script>
+(function(){
+  const menu = document.getElementById('ctxMenu');
+
+  function hideMenu() { menu.style.display = 'none'; }
+
+  function showMenu(x, y, items) {
+    menu.innerHTML = '';
+    items.forEach(item => {
+      if (item === 'sep') {
+        const s = document.createElement('div'); s.className = 'ctx-sep'; menu.appendChild(s);
+      } else {
+        const d = document.createElement('div');
+        d.className = 'ctx-item' + (item.danger ? ' danger' : '') + (item.disabled ? ' disabled' : '');
+        d.innerHTML = `<span class="ctx-icon">${item.icon||''}</span>${item.label}`;
+        d.onclick = item.disabled ? null : () => { hideMenu(); item.action(); };
+        menu.appendChild(d);
+      }
+    });
+    // Position — keep on screen
+    menu.style.display = 'block';
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    const wx = window.innerWidth, wy = window.innerHeight;
+    menu.style.left = Math.min(x, wx - mw - 8) + 'px';
+    menu.style.top  = Math.min(y, wy - mh - 8) + 'px';
+  }
+
+  document.addEventListener('mousedown', e => { if (!menu.contains(e.target)) hideMenu(); });
+  document.addEventListener('keydown',   e => { if (e.key === 'Escape') hideMenu(); });
+
+  // Expose globally so scene.js can call it
+  window._ctxMenu = { show: showMenu, hide: hideMenu };
+})();
 </script>
 
 </body>
