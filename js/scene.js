@@ -456,9 +456,27 @@ const CLADDING_CFG = {
   vertical_corrugated_sheet_cladding:      { texFile: 'assets/tex_composite.jpg', roughness: 0.60, rotated: false, tilesX: 1.5, tilesY: 1.0 },
 
   // ── RENDER / STONE (masonry, brick, stucco) ──────────────────────────────────
-  stone_01_cladding:                       { texFile: 'assets/tex_render.jpg', roughness: 0.95, rotated: false, tilesX: 0.5, tilesY: 0.5 },
-  red_brick_wall_02_cladding:              { texFile: 'assets/tex_render.jpg', roughness: 0.94, rotated: false, tilesX: 1.0, tilesY: 0.8 },
-  london_stone_cladding:                   { texFile: 'assets/tex_render.jpg', roughness: 0.96, rotated: false, tilesX: 0.6, tilesY: 0.6 },
+  stone_01_cladding:                       { texFile: 'assets/tex_render.jpg',   roughness: 0.95, rotated: false, tilesX: 0.5, tilesY: 0.5 },
+  red_brick_wall_02_cladding:              { texFile: 'assets/tex_red_brick.jpg', roughness: 0.96, rotated: false, tilesX: 1.0, tilesY: 0.8 },
+  red_brick_wall_01_cladding:              { texFile: 'assets/tex_red_brick.jpg', roughness: 0.96, rotated: false, tilesX: 1.0, tilesY: 0.8 },
+  london_stone_cladding:                   { texFile: 'assets/tex_render.jpg',   roughness: 0.96, rotated: false, tilesX: 0.6, tilesY: 0.6 },
+
+  // ── HORIZONTAL CEDAR ─────────────────────────────────────────────────────────
+  horizontal_cedar_cladding:               { texFile: 'assets/tex_horizontal_cedar.jpg', roughness: 0.85, rotated: true,  tilesX: 0.6, tilesY: 0.5 },
+
+  // ── CHARRED / THERMOWOOD ─────────────────────────────────────────────────────
+  charred_thermowood_cladding:             { texFile: 'assets/tex_charred_thermowood.jpg', roughness: 0.92, rotated: false, tilesX: 0.6, tilesY: 0.5 },
+  charred_black_thermowood_cladding:       { texFile: 'assets/tex_charred_black.jpg',      roughness: 0.94, rotated: false, tilesX: 0.6, tilesY: 0.5 },
+
+  // ── COMPOSITE / ENGINEERED PANELS ────────────────────────────────────────────
+  strongcore_cladding:                               { texFile: 'assets/tex_strongcore.jpg',         roughness: 0.75, rotated: false, tilesX: 1.0, tilesY: 0.8 },
+  neotimber_classic_plank_charcoal_vertical_cladding:{ texFile: 'assets/tex_neotimber_charcoal.jpg', roughness: 0.72, rotated: false, tilesX: 1.2, tilesY: 0.8 },
+  neotimber_classic_plank_grey_vertical_cladding:    { texFile: 'assets/tex_neotimber_grey.jpg',     roughness: 0.72, rotated: false, tilesX: 1.2, tilesY: 0.8 },
+
+  // ── METAL ─────────────────────────────────────────────────────────────────────
+  anthracite_vertical_metal_cladding:      { texFile: 'assets/tex_metal_anthracite.jpg', roughness: 0.55, metalness: 0.30, rotated: false, tilesX: 1.5, tilesY: 1.0 },
+  black_vertical_metal_cladding:           { texFile: 'assets/tex_metal_black.jpg',      roughness: 0.55, metalness: 0.30, rotated: false, tilesX: 1.5, tilesY: 1.0 },
+  corten_cladding:                         { texFile: 'assets/tex_corten.jpg',           roughness: 0.90, metalness: 0.10, rotated: false, tilesX: 0.5, tilesY: 0.5 },
 };
 
 // ── Roof-finish tiling densities (tiles per metre) and roughness ───────────────
@@ -624,6 +642,7 @@ const _TILE = f => _T('assets/int_floor_tiles.jpg',            f ?? 1.00, 0.40);
 const _CONC = f => _T('assets/int_floor_polished_concrete.jpg',f ?? 0.25, 0.30);
 const _GYM  = f => _T('assets/int_floor_gym_black.jpg',        f ?? 1.00, 0.60);
 const _RUBB = f => _T('assets/int_floor_rubber.jpg',           f ?? 1.00, 0.85);
+const _MARB = f => _T('assets/int_floor_marble.jpg',           f ?? 0.30, 0.25);
 
 const FLOOR_TEXTURE_DEFS = {
   // ── Oak / light wood ─────────────────────────────────────────────────────
@@ -679,8 +698,9 @@ const FLOOR_TEXTURE_DEFS = {
   dark_blue_rubber_flooring:                 _RUBB(),
   mid_blue_rubber_flooring:                  _RUBB(),
   light_blue_rubber_flooring:                _RUBB(),
-  // ── No texture available — will fall back to solid colour ─────────────────
-  // white_marble_flooring → no marble texture yet
+  // ── Marble ───────────────────────────────────────────────────────────────
+  white_marble_flooring:                     _MARB(),
+  // ── No texture (exterior product, no interior texture) ──────────────────
   // decking_flooring → exterior product, no interior texture
 };
 // Pre-load all floor textures at startup.
@@ -755,11 +775,19 @@ const INTERIOR_WALL_COLORS = {
 
 // Texture paths for interior wall finishes (takes priority over flat colour)
 const INTERIOR_WALL_TEXTURES = {
-  white_finished_walls:         'assets/int_wall_white.jpg',
-  charcoal_grey_finished_walls: 'assets/int_wall_charcoal.jpg',
-  plywood_finished_walls:       'assets/int_wall_plywood.jpg',
-  plywood_walls:                'assets/int_wall_plywood.jpg',
-  oak_panels_finished_walls:    'assets/int_wall_oak.jpg',
+  white_finished_walls:              'assets/int_wall_white.jpg',
+  charcoal_grey_finished_walls:      'assets/int_wall_charcoal.jpg',
+  plywood_finished_walls:            'assets/int_wall_plywood.jpg',
+  plywood_walls:                     'assets/int_wall_plywood.jpg',
+  oak_panels_finished_walls:         'assets/int_wall_oak.jpg',
+  alder_wood_finished_walls:         'assets/int_wall_alder.jpg',
+  tongue_and_groove_finished_walls:  'assets/int_wall_tongue_groove.jpg',
+  tongue_and_groove_walls:           'assets/int_wall_tongue_groove.jpg',
+  studs_membrane_finished_walls:     'assets/int_wall_membrane.jpg',
+  melamine_boards_finished_walls:    'assets/int_wall_melamine.jpg',
+  light_yellow_finished_walls:       'assets/int_wall_yellow.jpg',
+  light_blue_finished_walls:         'assets/int_wall_blue.jpg',
+  light_green_finished_walls:        'assets/int_wall_green.jpg',
 };
 
 const _iwTexCache = {};
@@ -2002,8 +2030,13 @@ const FURNITURE_CATALOG = {
   // ── Living ──────────────────────────────────────────────────────────────────
   sofa_2:        { label: 'Sofa (2-seat)',    w: 1.56, d: 0.84, h: 0.64, color: 0x6B7B8D, category: 'Living',  model: 'assets/white_couch.glb'    },
   sofa_3:        { label: 'Sofa (3-seat)',    w: 1.85, d: 0.90, h: 0.64, color: 0x6B7B8D, category: 'Living',  model: 'assets/couch4.glb'         },
+  sofa_4:        { label: 'Sofa (large)',     w: 2.10, d: 0.92, h: 0.68, color: 0x6B7B8D, category: 'Living',  model: 'assets/couch3.glb'         },
+  chaise_lounge: { label: 'Chaise Lounge',    w: 1.80, d: 0.80, h: 0.62, color: 0x7B8D9A, category: 'Living',  model: 'assets/chouch2.glb'        },
   corner_sofa:   { label: 'Corner Sofa',      w: 3.24, d: 2.56, h: 0.62, color: 0x6B7B8D, category: 'Living',  model: 'assets/corner_sofa.glb'    },
   armchair:      { label: 'Armchair',         w: 0.92, d: 0.90, h: 0.62, color: 0x7B8D9A, category: 'Living',  model: 'assets/grey_armchair.glb'  },
+  armchair_2:    { label: 'Armchair (2)',     w: 0.88, d: 0.85, h: 0.65, color: 0x8B7A6A, category: 'Living',  model: 'assets/armchair3.glb'      },
+  armchair_3:    { label: 'Armchair (3)',     w: 0.88, d: 0.85, h: 0.65, color: 0xCC7733, category: 'Living',  model: 'assets/armchair4.glb'      },
+  armchair_orange:{ label: 'Armchair (Orange)',w: 0.86, d: 0.84, h: 0.68, color: 0xDD6622, category: 'Living', model: 'assets/orange_armchair.glb' },
   coffee_table:  { label: 'Coffee Table',     w: 1.28, d: 1.28, h: 0.59, color: 0x8B6234, category: 'Living',  model: 'assets/circular_table.glb' },
   tv_unit:       { label: 'TV Unit',          w: 1.31, d: 0.35, h: 0.59, color: 0x222222, category: 'Living',  model: 'assets/tv_unit.glb',        wallHug: true },
   bench:         { label: 'Bench',            w: 1.57, d: 0.68, h: 0.88, color: 0x8B6914, category: 'Living',  model: 'assets/bench.glb'          },
@@ -2011,11 +2044,17 @@ const FURNITURE_CATALOG = {
   // ── Dining ──────────────────────────────────────────────────────────────────
   dining_table:  { label: 'Dining Table',     w: 1.45, d: 0.84, h: 0.60, color: 0x8B6914, category: 'Dining', model: 'assets/table.glb'          },
   dining_chair:  { label: 'Dining Chair',     w: 0.40, d: 0.46, h: 0.75, color: 0x555544, category: 'Dining', model: 'assets/dining_chair.glb'   },
+  dining_chair_2:{ label: 'Dining Chair (2)', w: 0.42, d: 0.48, h: 0.82, color: 0x4A4A3A, category: 'Dining', model: 'assets/dining_chair2.glb'  },
   stool:         { label: 'Stool',            w: 0.34, d: 0.34, h: 0.35, color: 0x8B6914, category: 'Dining', model: 'assets/stool.glb'          },
   stool_fancy:   { label: 'Bar Stool',        w: 0.34, d: 0.34, h: 0.75, color: 0x8B6914, category: 'Dining', model: 'assets/stool_fancy.glb'    },
   // ── Office ──────────────────────────────────────────────────────────────────
   desk:          { label: 'Desk',             w: 1.33, d: 0.56, h: 1.02, color: 0xC8A878, category: 'Office', model: 'assets/computer_desk.glb',  wallHug: true },
+  desk_2:        { label: 'Desk (2)',         w: 1.20, d: 0.60, h: 0.75, color: 0xC8A878, category: 'Office', model: 'assets/desk2.glb',          wallHug: true },
+  desk_3:        { label: 'Desk (3)',         w: 1.40, d: 0.65, h: 0.78, color: 0xD4B896, category: 'Office', model: 'assets/desk3.glb',          wallHug: true },
+  desk_large:    { label: 'Desk (large)',     w: 1.60, d: 0.70, h: 0.76, color: 0xB8966A, category: 'Office', model: 'assets/Desk.glb',           wallHug: true },
+  desk_old:      { label: 'Antique Desk',     w: 1.30, d: 0.65, h: 0.78, color: 0x7A5030, category: 'Office', model: 'assets/old_desk.glb',       wallHug: true },
   office_chair:  { label: 'Office Chair',     w: 0.51, d: 0.60, h: 0.99, color: 0x333333, category: 'Office', model: 'assets/office_chair.glb'   },
+  office_chair_2:{ label: 'Office Chair (2)', w: 0.54, d: 0.60, h: 1.02, color: 0x222222, category: 'Office', model: 'assets/officechair2.glb'   },
   bookshelf:     { label: 'Bookshelf',        w: 0.76, d: 0.37, h: 1.40, color: 0x7B5E3A, category: 'Office', model: 'assets/shelf_unit.glb',     wallHug: true },
   water_cooler:  { label: 'Water Cooler',     w: 0.26, d: 0.26, h: 1.03, color: 0xCCDDEE, category: 'Office', model: 'assets/watercooler.glb'    },
   // ── Bedroom ─────────────────────────────────────────────────────────────────
@@ -2023,7 +2062,10 @@ const FURNITURE_CATALOG = {
   double_bed:    { label: 'Double Bed',       w: 1.26, d: 1.50, h: 0.61, color: 0xDDCCBB, category: 'Bedroom', model: 'assets/bed_double.glb'                },
   queen_bed:     { label: 'Queen Bed',        w: 2.44, d: 1.83, h: 0.72, color: 0xDDCCBB, category: 'Bedroom', model: 'assets/bed_queen.glb'                 },
   bunk_bed:      { label: 'Bunk Bed',         w: 1.38, d: 0.82, h: 1.29, color: 0xDDCCBB, category: 'Bedroom', model: 'assets/bed_bunk.glb'                  },
-  wardrobe:      { label: 'Wardrobe',         w: 1.76, d: 0.39, h: 1.78, color: 0xA0936A, category: 'Bedroom', model: 'assets/cabinet_fancy.glb', wallHug: true },
+  wardrobe:      { label: 'Wardrobe',         w: 1.76, d: 0.39, h: 1.78, color: 0xA0936A, category: 'Bedroom', model: 'assets/cabinet_fancy.glb',  wallHug: true },
+  cabinet_brown: { label: 'Cabinet (Brown)',  w: 1.00, d: 0.40, h: 0.75, color: 0x7A5030, category: 'Bedroom', model: 'assets/cabinet_brown.glb',  wallHug: true },
+  cabinet_white: { label: 'Cabinet (White)',  w: 1.00, d: 0.40, h: 0.75, color: 0xEEEEEE, category: 'Bedroom', model: 'assets/cabinet_white.glb',  wallHug: true },
+  corner_cabinet:{ label: 'Corner Cabinet',   w: 0.90, d: 0.90, h: 1.80, color: 0x8A7050, category: 'Bedroom', model: 'assets/corner_cabinet.glb', wallHug: true },
   bedside:       { label: 'Bedside Table',    w: 0.46, d: 0.45, h: 0.40, color: 0x8B6914, category: 'Bedroom', model: 'assets/side_table.glb'                },
   // ── Bathroom ────────────────────────────────────────────────────────────────
   toilet:        { label: 'Toilet',           w: 0.35, d: 0.60, h: 0.68, color: 0xF2F0EE, category: 'Bathroom', model: 'assets/toilet.glb',            wallHug: true, modelRotY: Math.PI / 2 },
@@ -2042,6 +2084,8 @@ const FURNITURE_CATALOG = {
   washing_machine:{ label: 'Washing Machine', w: 0.50, d: 0.44, h: 0.72, color: 0xDDDDDD, category: 'Utility', model: 'assets/washingmachine.glb',  wallHug: true },
   radiator:       { label: 'Radiator',        w: 1.42, d: 0.18, h: 0.87, color: 0xDDDDDD, category: 'Utility', model: 'assets/bedroom_heater_radiator.glb', wallHug: true },
   // ── Misc ────────────────────────────────────────────────────────────────────
+  ironing_board: { label: 'Ironing Board',    w: 1.20, d: 0.38, h: 0.90, color: 0xDDDDCC, category: 'Misc', model: 'assets/ironing_board.glb' },
+  bin:           { label: 'Bin',              w: 0.28, d: 0.28, h: 0.55, color: 0x888888, category: 'Misc', model: 'assets/little_bin.glb'    },
   plant:         { label: 'Plant',            w: 0.57, d: 0.69, h: 1.36, color: 0x3A7A3A, category: 'Misc', model: 'assets/plant.glb'         },
   table_lamp:    { label: 'Table Lamp',       w: 0.52, d: 0.52, h: 1.51, color: 0xDDCC88, category: 'Misc', model: 'assets/table_lamp.glb'    },
   floor_lamp:    { label: 'Floor Lamp',       w: 0.59, d: 0.57, h: 1.55, color: 0xDDCC88, category: 'Misc', model: 'assets/tall_lamp.glb'     },
@@ -2281,8 +2325,10 @@ function buildPartitions() {
     // Trim rendered ends that abut an exterior wall
     const hw = state.width / 2, hd = state.depth / 2;
     const wallLimit = p.axis === 'x' ? hw : hd;
-    const trimStart = Math.abs(p.start + wallLimit) < 0.01 ? TK / 2 : 0;
-    const trimEnd   = Math.abs(p.end   - wallLimit) < 0.01 ? TK / 2 : 0;
+    // Trim by full wall thickness so partition stops flush with the interior
+    // face of the exterior wall — avoids geometry poking through the wall face.
+    const trimStart = Math.abs(p.start + wallLimit) < 0.01 ? TK : 0;
+    const trimEnd   = Math.abs(p.end   - wallLimit) < 0.01 ? TK : 0;
     const rStart = p.start + trimStart;
     const rEnd   = p.end   - trimEnd;
     if (rEnd - rStart <= 0) return;
@@ -2343,7 +2389,9 @@ function buildPartitions() {
 
       if (!seg.isDoor) {
         // Normal wall segment
-        const mat = makeIwMat(state.interiorWalls); mat.side = THREE.DoubleSide;
+        const mat = makeIwMat(state.interiorWalls);
+        mat.side = THREE.DoubleSide;
+        mat.polygonOffset = true; mat.polygonOffsetFactor = -1; mat.polygonOffsetUnits = -1;
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(W, wallH, D), mat);
         mesh.position.set(cx, floorY + wallH / 2, cz);
         mesh.castShadow = mesh.receiveShadow = true;
@@ -2962,6 +3010,12 @@ let presetRoomDragState = null;
 
 const _GRID = 0.25;  // snap grid resolution (metres)
 function _snapToGrid(v) { return Math.round(v / _GRID) * _GRID; }
+let _snapEnabled = true;
+function toggleSnapGrid() {
+  _snapEnabled = !_snapEnabled;
+  const btn = document.getElementById('tbSnap');
+  if (btn) btn.classList.toggle('active', _snapEnabled);
+}
 
 function _snapPos(axis, raw) {
   // Snap perpendicular position — wall face first, then 0.25m grid
@@ -3774,8 +3828,10 @@ window.addEventListener('mousemove', e => {
           }
         } else {
           // ── Free movement with boundary clamp ──────────────────────────────
-          f.x = f.x + gp.x - furnitureDragState.groundAnchor.x;
-          f.z = f.z + gp.z - furnitureDragState.groundAnchor.z;
+          const rawX = f.x + gp.x - furnitureDragState.groundAnchor.x;
+          const rawZ = f.z + gp.z - furnitureDragState.groundAnchor.z;
+          f.x = _snapEnabled ? _snapToGrid(rawX) : rawX;
+          f.z = _snapEnabled ? _snapToGrid(rawZ) : rawZ;
           if (dims) {
             const hw = state.width / 2, hd = state.depth / 2;
             const rotY = f.rotY ?? 0;
@@ -4719,8 +4775,8 @@ function startDragDrop(category, type, e) {
   _buildDDGhost(category, type);
   _ddState = { category, type };
   document.body.style.cursor = 'grabbing';
-  document.addEventListener('mousemove', _ddOnMove);
-  document.addEventListener('mouseup',   _ddOnUp);
+  document.addEventListener('pointermove', _ddOnMove);
+  document.addEventListener('pointerup',   _ddOnUp);
 }
 
 function _ddOnMove(e) {
@@ -4739,8 +4795,8 @@ function _ddOnUp(e) {
   if (!_ddState) return;
   const { category, type } = _ddState;
   _ddState = null;
-  document.removeEventListener('mousemove', _ddOnMove);
-  document.removeEventListener('mouseup',   _ddOnUp);
+  document.removeEventListener('pointermove', _ddOnMove);
+  document.removeEventListener('pointerup',   _ddOnUp);
   document.body.style.cursor = '';
   _clearDDGhost();
   markDirty();
@@ -4754,8 +4810,10 @@ function _ddOnUp(e) {
 
   if (category === 'furniture') {
     const id = state.nextFurnitureId++;
-    const x = pt ? pt.x : 0;
-    const z = pt ? pt.z : 0;
+    const rawX = pt ? pt.x : 0;
+    const rawZ = pt ? pt.z : 0;
+    const x = _snapEnabled ? _snapToGrid(rawX) : rawX;
+    const z = _snapEnabled ? _snapToGrid(rawZ) : rawZ;
     state.furniture.push({ id, type, x, z, rotY: 0 });
     stateHistory.push();
     buildFurniture();
