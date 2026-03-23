@@ -707,6 +707,9 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   .tb-btn { width: 30px; height: 30px; flex-shrink: 0; }
   .tb-sep { height: 16px; margin: 0 2px; flex-shrink: 0; }
 
+  /* ── Placement banner: below scrollable toolbar on mobile ── */
+  #placementBanner { top: 52px !important; }
+
   /* ── Specs bar: stay top-right so panel never covers it when open ── */
   .specs-bar {
     top: 54px;   /* just below the scrollable toolbar */

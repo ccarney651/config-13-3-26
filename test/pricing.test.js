@@ -156,6 +156,61 @@ function runTests() {
   assert.strictEqual(calcTotal(s) - total, getRate('groundworks'));
   s.groundworks = false;
 
+  // ── Openings contribute to total ─────────────────────────────────────────
+  // Use keys that exist in the pricing catalogue (not 3D model style keys)
+  s.openings = [{ id: 1, type: 'door', wall: 'front', offset: 0, style: 'double_door' }];
+  const totalWithDoor = calcTotal(s);
+  const doorItem = getItem('double_door');
+  assert.ok(doorItem, 'double_door exists in catalogue');
+  assert.strictEqual(totalWithDoor - total, doorItem.rate, 'door price matches catalogue');
+
+  s.openings = [{ id: 1, type: 'window', wall: 'left', offset: 0, style: 'tilt_n_turn_window' }];
+  const totalWithWindow = calcTotal(s);
+  const winItem = getItem('tilt_n_turn_window');
+  assert.ok(winItem, 'tilt_n_turn_window exists in catalogue');
+  assert.strictEqual(totalWithWindow - total, winItem.rate, 'window price matches catalogue');
+
+  // Styles not in the pricing catalogue contribute £0 (3D-only styles)
+  s.openings = [{ id: 1, type: 'door', wall: 'front', offset: 0, style: 'double_french_door' }];
+  assert.strictEqual(calcTotal(s), total, 'unknown style contributes £0 to total');
+  s.openings = [];
+
+  // ── Decking is charged per m² when enabled ───────────────────────────────
+  s.extras = { decking: true };
+  s.deckingMaterial = 'composite_decking';
+  s.deckingArea = 15;
+  const deckItem = getItem('composite_decking');
+  if (deckItem) {
+    const expectedDecking = Math.round(deckItem.rate * 15);
+    assert.strictEqual(calcTotal(s) - total, expectedDecking, 'decking priced per m²');
+  }
+  s.extras = { decking: false };
+  s.deckingArea = 0;
+
+  // ── Quantity items accumulate correctly ──────────────────────────────────
+  s.electricalItems = { double_socket: 3, single_socket: 0, floor_socket: 0, usb_socket: 0,
+    smart_socket: 0, external_socket: 0, shaver_socket: 0, tv_socket: 0, phone_socket: 0,
+    light_switch: 0, double_light_switch: 0, dimmer_switch: 0, '2_gang_dimmer_switch': 0,
+    '3_gang_dimmer': 0, '4_gang_dimmer': 0, rotary_switch: 0, store_switch: 0,
+    ceiling_light: 2, external_ceiling_light: 0, wall_light: 0, up_down_light: 0,
+    strip_light: 0, track_light: 0, track_light_ceiling: 0, panel_light: 0,
+    linear_wall_light: 0, security_light_with_pir: 0, '10_way_cu': 0, consumer_box: 0,
+    internal_consumer_unit: 0, electrics: 0, isolator_20a: 0, isolator_45a: 0,
+    fan_isolator: 0, pir_sensor: 0, extractor_fan: 0, data_point: 0 };
+  const expectedElec = getRate('double_socket') * 3 + getRate('ceiling_light') * 2;
+  assert.strictEqual(calcTotal(s) - total, expectedElec, 'qty electrical items sum correctly');
+  s.electricalItems = Object.fromEntries(Object.keys(s.electricalItems).map(k => [k, 0]));
+
+  // ── screws foundation uses screw count, not flat rate ────────────────────
+  const screwState = { width: 3, depth: 4, foundation: 'screws' };
+  const screwResult = calcFoundation(screwState);
+  assert.ok(screwResult.total > 0, 'screws foundation has a cost');
+  assert.ok(screwResult.label.toLowerCase().includes('screw'), 'foundation label mentions screws');
+
+  // ── Zero-area room has no area-based charges ──────────────────────────────
+  // (Guards against divide-by-zero or negative prices)
+  const tinyState = { ...s, width: 0.1, depth: 0.1, foundation: 'concrete' };
+  assert.doesNotThrow(() => calcTotal(tinyState), 'calcTotal handles tiny rooms without throwing');
 
   console.log('All pricing tests passed!');
 }

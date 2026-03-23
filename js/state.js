@@ -140,3 +140,7 @@ const DEFAULT_STATE = {
 };
 
 const state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { DEFAULT_STATE, state };
+}

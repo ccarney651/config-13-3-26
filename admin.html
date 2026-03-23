@@ -61,6 +61,29 @@
 
     .btn-export { background:#3a6647; color:#fff; border:none; padding:8px 16px; border-radius:7px; font-size:13px; font-family:inherit; font-weight:600; cursor:pointer; }
     .btn-export:hover { background:#2d5038; }
+
+    /* Edit button on each row */
+    .item-edit-btn { flex-shrink:0; border:none; background:none; cursor:pointer; color:#aaa; font-size:14px; padding:2px 5px; border-radius:4px; line-height:1; transition:color 0.15s, background 0.15s; }
+    .item-edit-btn:hover, .item-edit-btn.active { color:#3a6647; background:#e8f5ed; }
+
+    /* Inline edit panel */
+    .item-edit-panel { background:#f8f6f2; border-bottom:2px solid #3a6647; padding:14px 20px 14px 32px; display:grid; grid-template-columns:1fr 1fr; gap:12px 20px; }
+    .item-edit-panel label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:0.4px; }
+    .item-edit-panel input[type=text],
+    .item-edit-panel input[type=number],
+    .item-edit-panel select { padding:6px 10px; border:1.5px solid #ddd; border-radius:6px; font-size:13px; font-family:inherit; outline:none; background:#fff; }
+    .item-edit-panel input:focus,
+    .item-edit-panel select:focus { border-color:#3a6647; }
+    .edit-file-row { display:flex; align-items:center; gap:8px; }
+    .edit-thumb-preview { width:48px; height:38px; object-fit:cover; border-radius:4px; border:1px solid #ddd; background:#eee; flex-shrink:0; }
+    .edit-file-status { font-size:11px; color:#666; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .btn-file-pick { flex-shrink:0; border:1.5px solid #ccc; background:#fff; border-radius:5px; padding:4px 10px; font-size:11px; font-family:inherit; cursor:pointer; color:#555; transition:border-color 0.15s, color 0.15s; }
+    .btn-file-pick:hover { border-color:#3a6647; color:#3a6647; }
+    .edit-panel-actions { grid-column:1/-1; display:flex; gap:8px; padding-top:4px; }
+    .btn-edit-apply { background:#3a6647; color:#fff; border:none; border-radius:6px; padding:6px 16px; font-size:12px; font-family:inherit; font-weight:600; cursor:pointer; }
+    .btn-edit-apply:hover { background:#2d5038; }
+    .btn-edit-cancel { background:#fff; color:#666; border:1.5px solid #ddd; border-radius:6px; padding:6px 14px; font-size:12px; font-family:inherit; cursor:pointer; }
+    .btn-edit-cancel:hover { border-color:#aaa; }
   </style>
 </head>
 <body>
@@ -181,6 +204,44 @@ const SECTIONS = [
 
 let disabledItems = JSON.parse(localStorage.getItem('gardenroom_disabled') || '{}');
 let rateOverrides = JSON.parse(localStorage.getItem('gardenroom_pricing') || '{}');
+let itemMeta      = JSON.parse(localStorage.getItem('gardenroom_item_meta') || '{}');
+
+// ─── IndexedDB helper — stores uploaded texture / model files ────────────────
+const _adminDB = (() => {
+  let _db = null;
+  function open() {
+    if (_db) return Promise.resolve(_db);
+    return new Promise((res, rej) => {
+      const req = indexedDB.open('gardenroom_assets', 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore('files');
+      req.onsuccess = e => { _db = e.target.result; res(_db); };
+      req.onerror = rej;
+    });
+  }
+  return {
+    put(key, val) {
+      return open().then(db => new Promise((res, rej) => {
+        const tx = db.transaction('files', 'readwrite');
+        tx.objectStore('files').put(val, key);
+        tx.oncomplete = res; tx.onerror = rej;
+      }));
+    },
+    get(key) {
+      return open().then(db => new Promise((res, rej) => {
+        const req = db.transaction('files').objectStore('files').get(key);
+        req.onsuccess = () => res(req.result || null);
+        req.onerror = rej;
+      }));
+    },
+    del(key) {
+      return open().then(db => new Promise((res, rej) => {
+        const tx = db.transaction('files', 'readwrite');
+        tx.objectStore('files').delete(key);
+        tx.oncomplete = res; tx.onerror = rej;
+      }));
+    },
+  };
+})();
 
 // ─── Auth ───────────────────────────────────────────────────────────────────
 function checkPassword() {
@@ -247,13 +308,18 @@ function buildForm() {
       items.sort((a, b) => a.label.localeCompare(b.label)).forEach(it => {
         const isOn = !disabledItems[it.key];
         const rate = rateOverrides[it.key] ?? it.rate;
-        const unit = unitLabel(it.unit);
-        html += `<div class="item-row${isOn ? '' : ' disabled'}" data-key="${it.key}" data-sec="${sec.key}">`;
+        const meta = itemMeta[it.key] || {};
+        const displayLabel = meta.label || it.label;
+        const displayUnit = unitLabel(meta.unit || it.unit);
+        const thumbSrc = meta.thumbDataUrl || `assets/${it.key}.jpg`;
+        const fileStatus = meta.hasFile ? ` data-hasfile="1"` : '';
+        html += `<div class="item-row${isOn ? '' : ' disabled'}" data-key="${it.key}" data-sec="${sec.key}"${fileStatus}>`;
         html += `<button class="item-toggle${isOn ? ' on' : ''}" onclick="toggleItem('${it.key}',this)"></button>`;
-        html += `<span class="item-thumb-wrap"><img class="item-thumb" src="assets/${it.key}.jpg" loading="lazy" onerror="this.classList.add('no-img')" title="assets/${it.key}.jpg"></span>`;
-        html += `<span class="item-label" title="${it.key}">${it.label}</span>`;
-        html += `<span class="item-unit">${unit}</span>`;
+        html += `<span class="item-thumb-wrap"><img class="item-thumb" src="${thumbSrc}" loading="lazy" onerror="this.classList.add('no-img')" title="assets/${it.key}.jpg"></span>`;
+        html += `<span class="item-label" title="${it.key}">${displayLabel}</span>`;
+        html += `<span class="item-unit">${displayUnit}</span>`;
         html += `<span class="item-rate"><input type="number" step="any" min="0" value="${rate}" data-key="${it.key}" onchange="this.classList.add('changed')"></span>`;
+        html += `<button class="item-edit-btn" onclick="toggleEditPanel('${it.key}',this)" title="Edit item">✎</button>`;
         html += `</div>`;
       });
 
@@ -325,6 +391,163 @@ function filterItems(query) {
   });
 }
 
+// ─── Item edit panel ─────────────────────────────────────────────────────────
+const ALL_UNITS = ['Each','M2','Quantity','Length Metres','Roof Area','Width x Depth'];
+let _editOpenKey = null;
+
+function toggleEditPanel(key, btnEl) {
+  const existing = document.getElementById('edit-panel-' + key);
+  if (existing) {
+    existing.remove();
+    btnEl.classList.remove('active');
+    _editOpenKey = null;
+    return;
+  }
+  // Close any previously open panel
+  if (_editOpenKey) {
+    const prev = document.getElementById('edit-panel-' + _editOpenKey);
+    if (prev) prev.remove();
+    document.querySelectorAll('.item-edit-btn.active').forEach(b => b.classList.remove('active'));
+  }
+  _editOpenKey = key;
+  btnEl.classList.add('active');
+
+  const it = getItem(key);
+  const meta = itemMeta[key] || {};
+  const currentLabel = meta.label || (it ? it.label : key);
+  const currentUnit  = meta.unit  || (it ? it.unit  : 'Each');
+  const currentRate  = rateOverrides[key] ?? (it ? it.rate : 0);
+  const thumbSrc     = meta.thumbDataUrl || `assets/${key}.jpg`;
+  const fileText     = meta.fileName ? `✓ ${meta.fileName}` : 'No file uploaded';
+
+  const unitOpts = ALL_UNITS.map(u =>
+    `<option value="${u}"${u === currentUnit ? ' selected' : ''}>${unitLabel(u)}</option>`
+  ).join('');
+
+  const panel = document.createElement('div');
+  panel.id = 'edit-panel-' + key;
+  panel.className = 'item-edit-panel';
+  panel.innerHTML = `
+    <label>Item name
+      <input type="text" id="ename-${key}" value="${currentLabel.replace(/"/g, '&quot;')}" placeholder="Display name">
+    </label>
+    <label>Pricing unit
+      <select id="eunit-${key}">${unitOpts}</select>
+    </label>
+    <label>Price (£)
+      <input type="number" id="erate-${key}" step="any" min="0" value="${currentRate}">
+    </label>
+    <label>Preview image
+      <div class="edit-file-row">
+        <img id="ethumb-${key}" class="edit-thumb-preview" src="${thumbSrc}" onerror="this.style.opacity=0.25">
+        <button class="btn-file-pick" onclick="document.getElementById('eimginput-${key}').click()">Upload image…</button>
+        <input type="file" id="eimginput-${key}" accept="image/*" style="display:none" onchange="handleImageUpload('${key}',this)">
+      </div>
+    </label>
+    <label>Texture / 3D model file
+      <div class="edit-file-row">
+        <span id="efilestatus-${key}" class="edit-file-status">${fileText}</span>
+        <button class="btn-file-pick" onclick="document.getElementById('efileinput-${key}').click()">Upload file…</button>
+        <input type="file" id="efileinput-${key}" accept=".jpg,.jpeg,.png,.webp,.glb,.gltf" style="display:none" onchange="handleFileUpload('${key}',this)">
+        ${meta.hasFile ? `<button class="btn-file-pick" style="color:#c0392b;border-color:#c0392b" onclick="removeFile('${key}')">Remove</button>` : ''}
+      </div>
+    </label>
+    <div class="edit-panel-actions">
+      <button class="btn-edit-apply" onclick="applyItemEdit('${key}')">Apply</button>
+      <button class="btn-edit-cancel" onclick="closeEditPanel('${key}')">Cancel</button>
+    </div>
+  `;
+
+  const row = document.querySelector(`.item-row[data-key="${key}"]`);
+  if (row) row.insertAdjacentElement('afterend', panel);
+}
+
+function closeEditPanel(key) {
+  const panel = document.getElementById('edit-panel-' + key);
+  if (panel) panel.remove();
+  document.querySelectorAll('.item-edit-btn.active').forEach(b => b.classList.remove('active'));
+  _editOpenKey = null;
+}
+
+function handleImageUpload(key, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!itemMeta[key]) itemMeta[key] = {};
+    itemMeta[key].thumbDataUrl = e.target.result;
+    // Update both the edit panel preview and the row thumbnail
+    const prev = document.getElementById('ethumb-' + key);
+    if (prev) { prev.src = e.target.result; prev.style.opacity = 1; }
+    const rowThumb = document.querySelector(`.item-row[data-key="${key}"] .item-thumb`);
+    if (rowThumb) rowThumb.src = e.target.result;
+    saveItemMeta();
+    showSaveMsg('Preview image updated.');
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleFileUpload(key, input) {
+  const file = input.files[0];
+  if (!file) return;
+  _adminDB.put('file_' + key, file).then(() => {
+    if (!itemMeta[key]) itemMeta[key] = {};
+    itemMeta[key].hasFile = true;
+    itemMeta[key].fileName = file.name;
+    itemMeta[key].fileType = file.type;
+    const status = document.getElementById('efilestatus-' + key);
+    if (status) status.textContent = `✓ ${file.name}`;
+    saveItemMeta();
+    showSaveMsg(`File "${file.name}" stored — will be used by the configurator on next load.`);
+  });
+}
+
+function removeFile(key) {
+  _adminDB.del('file_' + key).then(() => {
+    if (itemMeta[key]) { delete itemMeta[key].hasFile; delete itemMeta[key].fileName; delete itemMeta[key].fileType; }
+    saveItemMeta();
+    closeEditPanel(key);
+    toggleEditPanel(key, document.querySelector(`.item-row[data-key="${key}"] .item-edit-btn`));
+    showSaveMsg('File removed.');
+  });
+}
+
+function applyItemEdit(key) {
+  const labelVal = document.getElementById('ename-' + key)?.value.trim();
+  const unitVal  = document.getElementById('eunit-' + key)?.value;
+  const rateVal  = parseFloat(document.getElementById('erate-' + key)?.value);
+
+  if (!itemMeta[key]) itemMeta[key] = {};
+  if (labelVal) itemMeta[key].label = labelVal;
+  if (unitVal)  itemMeta[key].unit  = unitVal;
+
+  // Rate override
+  const it = getItem(key);
+  if (!isNaN(rateVal)) {
+    if (it && rateVal !== it.rate) rateOverrides[key] = rateVal;
+    else delete rateOverrides[key];
+  }
+
+  // Update the row visually without rebuilding the whole form
+  const row = document.querySelector(`.item-row[data-key="${key}"]`);
+  if (row) {
+    const lbl = row.querySelector('.item-label');
+    if (lbl && labelVal) lbl.textContent = labelVal;
+    const unitEl = row.querySelector('.item-unit');
+    if (unitEl && unitVal) unitEl.textContent = unitLabel(unitVal);
+    const rateInput = row.querySelector('.item-rate input');
+    if (rateInput && !isNaN(rateVal)) { rateInput.value = rateVal; rateInput.classList.add('changed'); }
+  }
+
+  saveItemMeta();
+  closeEditPanel(key);
+  showSaveMsg('Changes applied. Click "Save Changes" to persist.');
+}
+
+function saveItemMeta() {
+  localStorage.setItem('gardenroom_item_meta', JSON.stringify(itemMeta));
+}
+
 function addItem(cat, sub, secKey) {
   const label = prompt('Item name:');
   if (!label) return;
@@ -357,8 +580,9 @@ function savePricing() {
   });
   localStorage.setItem('gardenroom_pricing', JSON.stringify(newOverrides));
   localStorage.setItem('gardenroom_disabled', JSON.stringify(disabledItems));
+  localStorage.setItem('gardenroom_item_meta', JSON.stringify(itemMeta));
   rateOverrides = newOverrides;
-  showSaveMsg('Saved — prices update on the next customer interaction.');
+  showSaveMsg('Saved — changes take effect on the next configurator load.');
 }
 
 function resetPricing() {
@@ -366,8 +590,10 @@ function resetPricing() {
   localStorage.removeItem('gardenroom_pricing');
   localStorage.removeItem('gardenroom_disabled');
   localStorage.removeItem('gardenroom_custom_items');
+  localStorage.removeItem('gardenroom_item_meta');
   rateOverrides = {};
   disabledItems = {};
+  itemMeta = {};
   buildForm();
   showSaveMsg('Reset to defaults.');
 }
