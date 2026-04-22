@@ -9,7 +9,7 @@ function printQuote() {
   const midStage  = Math.round(total * 0.40);
   const completion= Math.round(total * 0.10);
   const s = state;
-  const area = (s.width * s.depth).toFixed(1);
+  const area = s.width * s.depth;
   const subtitle = typeof leadInfo !== 'undefined' && leadInfo.name
     ? `Prepared for ${leadInfo.name}`
     : 'Indicative estimate';
@@ -151,7 +151,7 @@ function buildQuoteHTML() {
 
   // ─── Dimensions ─────────────────────────────────────────────────────────
   html += qSection('Building Dimensions', [
-    qLine(`${s.width.toFixed(1)}m × ${s.depth.toFixed(1)}m × ${s.height.toFixed(1)}m (${area.toFixed(1)}m²)`, 'See below'),
+    qLine(`${fmtDim(s.width)} × ${fmtDim(s.depth)} × ${fmtDim(s.height)} (${fmtArea(area)})`, 'See below'),
   ]);
 
   // ─── Foundation ─────────────────────────────────────────────────────────
@@ -161,13 +161,13 @@ function buildQuoteHTML() {
   // ─── Roofing ────────────────────────────────────────────────────────────
   if (s.roofFinish) {
     const r = getItem(s.roofFinish);
-    if (r) html += qSection('Roofing', [qLine(`${r.label} (${area.toFixed(1)}m² × £${r.rate})`, Math.round(r.rate * area))]);
+    if (r) html += qSection('Roofing', [qLine(`${r.label} (${fmtArea(area)} × £${r.rate})`, Math.round(r.rate * area))]);
   }
 
   // ─── Cladding ───────────────────────────────────────────────────────────
   if (s.cladding) {
     const c = getItem(s.cladding);
-    if (c) html += qSection('Cladding', [qLine(`${c.label} (${wallArea.toFixed(1)}m² × £${c.rate})`, Math.round(c.rate * wallArea))]);
+    if (c) html += qSection('Cladding', [qLine(`${c.label} (${fmtArea(wallArea)} × £${c.rate})`, Math.round(c.rate * wallArea))]);
   }
 
   // ─── Openings ───────────────────────────────────────────────────────────
@@ -184,11 +184,11 @@ function buildQuoteHTML() {
   const intLines = [];
   if (s.interiorWalls) {
     const w = getItem(s.interiorWalls);
-    if (w && w.rate > 0) intLines.push(qLine(`Walls: ${w.label} (${wallArea.toFixed(1)}m² × £${w.rate})`, Math.round(w.rate * wallArea)));
+    if (w && w.rate > 0) intLines.push(qLine(`Walls: ${w.label} (${fmtArea(wallArea)} × £${w.rate})`, Math.round(w.rate * wallArea)));
   }
   if (s.interiorFloor) {
     const f = getItem(s.interiorFloor);
-    if (f && f.rate > 0) intLines.push(qLine(`Floor: ${f.label} (${area.toFixed(1)}m² × £${f.rate})`, Math.round(f.rate * area)));
+    if (f && f.rate > 0) intLines.push(qLine(`Floor: ${f.label} (${fmtArea(area)} × £${f.rate})`, Math.round(f.rate * area)));
   }
   html += qSection('Interior Finishes', intLines);
 
@@ -196,13 +196,13 @@ function buildQuoteHTML() {
   if (s.guttering && s.guttering !== 'none') {
     const g = getItem(s.guttering);
     const perim = 2 * (s.width + s.depth);
-    if (g) html += qSection('Guttering', [qLine(`${g.label} (${perim.toFixed(1)}m × £${g.rate})`, Math.round(g.rate * perim))]);
+    if (g) html += qSection('Guttering', [qLine(`${g.label} (${fmtDim(perim)} × £${g.rate})`, Math.round(g.rate * perim))]);
   }
 
   // ─── Decking ────────────────────────────────────────────────────────────
   if (s.extras.decking && s.deckingMaterial) {
     const d = getItem(s.deckingMaterial);
-    if (d) html += qSection('Decking', [qLine(`${d.label} (${s.deckingArea}m² × £${d.rate})`, Math.round(d.rate * s.deckingArea))]);
+    if (d) html += qSection('Decking', [qLine(`${d.label} (${fmtArea(s.deckingArea)} × £${d.rate})`, Math.round(d.rate * s.deckingArea))]);
   }
 
   // ─── Quantity-based sections ────────────────────────────────────────────

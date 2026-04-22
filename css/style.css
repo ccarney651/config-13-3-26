@@ -248,7 +248,7 @@ header h1 {
 
 input[type="range"] {
   flex: 1;
-  -webkit-appearance: none;
+  -webkit-appearance: none; appearance: none;
   height: 4px; border-radius: 2px;
   background: var(--border); outline: none; cursor: pointer;
 }
@@ -424,9 +424,6 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
 .tb-sep {
   width: 1px; height: 20px; background: var(--border); margin: 0 4px;
 }
-
-/* ── Camera debug overlay ────────────────────────────────────────────────────── */
-
 
 /* ── Specs bar ───────────────────────────────────────────────────────────────── */
 
@@ -638,6 +635,57 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
 .modal-btn.secondary { background: var(--border); color: var(--text); }
 .modal-btn.secondary:hover { background: #d4cec5; }
 
+/* ── Drag-to-place buttons (electrics, etc.) ─────────────────────────────────── */
+.drag-btn {
+  padding: 7px 8px; border-radius: var(--radius); font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px; font-weight: 500; cursor: grab; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); text-align: left;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background 0.12s, border-color 0.12s; user-select: none;
+}
+.drag-btn:hover  { background: var(--border); border-color: #bbb; }
+.drag-btn:active { cursor: grabbing; }
+.drag-price { font-size: 10.5px; color: var(--muted); font-weight: 400; }
+
+/* ── Electrics tab ───────────────────────────────────────────────────────────── */
+.elec-hint { font-size: 11px; color: var(--muted); margin: 0 0 10px; line-height: 1.5; }
+
+/* Placed items list */
+#electricsList:not(:empty) { border-top: 1px solid var(--border); margin-top: 4px; }
+.elec-placed-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 4px; border-bottom: 1px solid var(--border); font-size: 12px;
+  cursor: pointer; border-radius: 3px; transition: background 0.1s;
+}
+.elec-placed-row:last-child { border-bottom: none; }
+.elec-placed-row:hover     { background: var(--border); }
+.elec-placed-row.selected  { background: #e8f0e8; outline: 1px solid #274833; }
+.elec-placed-label { flex: 1; color: var(--text); }
+.elec-placed-price { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.elec-placed-del {
+  border: none; background: none; color: var(--muted); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0 2px; flex-shrink: 0;
+}
+.elec-placed-del:hover { color: var(--warn); }
+
+/* Additional items (details/summary) */
+.elec-extras { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+.elec-extras summary { font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted); }
+.elec-extras[open] .elec-extras-arrow { transform: rotate(90deg); }
+.elec-extras-arrow { display: inline-block; transition: transform 0.15s; font-size: 14px; color: var(--muted); }
+.elec-extra-group {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); margin: 10px 0 4px;
+}
+.elec-row {
+  display: flex; align-items: center; padding: 4px 0;
+  border-bottom: 1px solid var(--border); font-size: 12px; gap: 6px;
+}
+.elec-row:last-child { border-bottom: none; }
+.elec-row > span:first-child { flex: 1; color: var(--text); }
+.elec-price { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
 /* ── Mobile overlay ──────────────────────────────────────────────────────────── */
 
 .mobile-overlay {
@@ -722,8 +770,13 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   .specs-bar h3 { font-size: 8.5px; margin-bottom: 5px; }
   .spec-row { font-size: 10.5px; margin-bottom: 3px; gap: 8px; }
 
-  /* ── View hint: swap desktop text for touch gestures ── */
-  .view-hint { display: flex; }
+  /* ── View hint: re-centre below toolbar (no sidebar on mobile) ── */
+  .view-hint {
+    display: flex;
+    top: 54px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
   .view-hint-desktop { display: none; }
   .view-hint-touch   { display: inline; }
 
@@ -744,16 +797,32 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   /* ── Options panel: fixed px cap so 3D viewport is NEVER fully blocked ──
      Layout math (portrait phone):
        header:   52px
-       viewport: min 180px  ← guaranteed always visible strip
-       panel:    max 240px  (content scrolls inside)
+       viewport: min 160px  ← guaranteed always visible strip
+       panel:    max 260px  (content scrolls inside)
        tab bar:  56px
-     Total: 528px — fits any phone ≥ 568px tall.
+     Total: 528px — fits any phone ≥ 528px tall.
      Fixed px ceiling (not vh) means the model never disappears
      regardless of phone height. ── */
   .tab-panel {
-    max-height: 240px;
+    max-height: 260px;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
+
+  /* ── Swatch grid: 2 columns minimum on mobile so items aren't too narrow ── */
+  .swatch-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+
+  /* ── Sub-tabs: allow scrolling horizontally if many pills ── */
+  .sub-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .sub-tabs::-webkit-scrollbar { display: none; }
+  .sub-tab { flex-shrink: 0; }
 
   /* ── Sections ── */
   .section { padding: 12px 14px; }
@@ -838,7 +907,7 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   .option-grid.cols3 { grid-template-columns: 1fr 1fr; }
 
   /* Tab panel: slightly more room since specs bar is gone, but viewport still visible */
-  .tab-panel { max-height: 260px; }
+  .tab-panel { max-height: 280px; }
 
   /* Larger touch targets for option buttons */
   .option-btn { padding: 14px 6px 12px; font-size: 11.5px; }
@@ -993,11 +1062,27 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
 }
 .cat-swatch:hover { border-color: var(--accent-mid); transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .cat-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(58,102,71,0.15), var(--shadow-sm); }
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .cat-swatch-img {
   width: 100%;
   aspect-ratio: 4/3;
-  background: linear-gradient(135deg, #ddd 25%, #ccc 50%, #ddd 75%);
-  background-size: 200% 200%;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #e6e6e6 25%, #d4d4d4 50%, #e6e6e6 75%);
+  background-size: 300% 100%;
+  animation: shimmer 1.8s infinite linear;
+}
+.cat-swatch-img img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .cat-swatch-label {
   padding: 5px 5px 7px;
@@ -1009,6 +1094,7 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
@@ -1048,8 +1134,20 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   width: 36px;
   height: 36px;
   border-radius: 6px;
-  background: linear-gradient(135deg, #ddd, #ccc);
+  background: linear-gradient(90deg, #e6e6e6 25%, #d4d4d4 50%, #e6e6e6 75%);
+  background-size: 300% 100%;
+  animation: shimmer 1.8s infinite linear;
   flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+}
+.qty-item-img img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .qty-item-info { flex: 1; min-width: 0; }
 .qty-item-label { font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.2; }
@@ -1081,7 +1179,7 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  display: none;  /* only show when qty > 0 */
+  display: none;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
@@ -1090,6 +1188,10 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   padding: 0;
   line-height: 1;
 }
+/* + button always visible so users can add from 0 */
+.qty-controls > .qty-btn:last-child { display: flex; border-color: var(--accent); color: var(--accent); }
+.qty-controls > .qty-btn:last-child:hover { background: var(--accent); color: white; border-color: var(--accent); }
+/* − button only visible when qty > 0 */
 .qty-item.has-qty .qty-btn { display: flex; }
 .qty-btn:hover { background: var(--warn); color: white; border-color: var(--warn); }
 
@@ -1232,6 +1334,42 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
 }
 .admin-btn:hover { background: rgba(255,255,255,0.22); }
 .admin-btn svg   { display: block; }
+
+/* ─── Right-click context menu ─────────────────────────────────────────────── */
+#ctxMenu {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  min-width: 170px;
+  overflow: hidden;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: #eee;
+}
+.ctx-item {
+  padding: 9px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  transition: background 0.1s;
+}
+.ctx-item:hover { background: #2e2e2e; }
+.ctx-item.danger { color: #ff6b6b; }
+.ctx-item .ctx-icon { font-size: 15px; width: 18px; text-align: center; }
+.ctx-item.disabled { color: #666; cursor: default; font-style: italic; }
+.ctx-item.disabled:hover { background: transparent; }
+.ctx-sep { height: 1px; background: #333; margin: 3px 0; }
+
+@media (max-width: 768px) {
+  .ctx-item { padding: 13px 18px; font-size: 15px; gap: 12px; }
+  .ctx-item .ctx-icon { font-size: 18px; width: 22px; }
+  #ctxMenu { min-width: 200px; }
+}
 
 /* ─── Checkbox rows (service connections, groundworks) ─────────────────────── */
 .checkbox-row {

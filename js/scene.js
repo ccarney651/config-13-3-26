@@ -1683,6 +1683,7 @@ function buildRoom() {
   buildPartitions();
   buildPresetRooms();
   buildFurniture();
+  buildElectrics();
   if (interiorViewMode) applyInteriorView();
   if (floorplanViewMode) {
     [buildingGroup, roofGroup].forEach(grp => grp.traverse(child => {
@@ -2093,9 +2094,40 @@ const FURNITURE_CATALOG = {
   rug:           { label: 'Rug',              w: 1.50, d: 2.00, h: 0.02, color: 0xAA8855, category: 'Misc'                                    },
 };
 
+// ─── ELECTRICS CATALOG ───────────────────────────────────────────────────────
+// mountHeight = default Y height of the centre of the backplate from floor level.
+// w/h = face dimensions; d = protrusion from wall (kept very thin).
+const ELECTRICS_CATALOG = {
+  double_socket_3d:  { label: 'Double Socket',    w: 0.145, h: 0.085, d: 0.035, mountHeight: 0.30, color: 0xF5F5F0 },
+  single_socket_3d:  { label: 'Single Socket',    w: 0.086, h: 0.086, d: 0.035, mountHeight: 0.30, color: 0xF5F5F0 },
+  usb_socket_3d:     { label: 'USB Socket',        w: 0.086, h: 0.086, d: 0.035, mountHeight: 0.30, color: 0xF5F5F0 },
+  light_switch_3d:   { label: 'Light Switch',      w: 0.086, h: 0.086, d: 0.035, mountHeight: 1.00, color: 0xF5F5F0 },
+  double_switch_3d:  { label: 'Double Switch',     w: 0.145, h: 0.086, d: 0.035, mountHeight: 1.00, color: 0xF5F5F0 },
+  dimmer_3d:         { label: 'Dimmer Switch',     w: 0.086, h: 0.086, d: 0.035, mountHeight: 1.00, color: 0xF5F5F0 },
+  consumer_box_3d:   { label: 'Consumer Unit',     w: 0.25,  h: 0.35,  d: 0.10,  mountHeight: 1.30, color: 0xE0E0E0 },
+  spotlight_3d:      { label: 'Spotlight (ceil.)', w: 0.10,  h: 0.10,  d: 0.05,  mountHeight: -1,   color: 0xDDDDCC }, // -1 = ceiling-mounted
+  extractor_fan_3d:  { label: 'Extractor Fan',     w: 0.20,  h: 0.20,  d: 0.10,  mountHeight: -1,   color: 0xDDDDDD }, // -1 = ceiling-mounted
+  tv_point_3d:       { label: 'TV Point',          w: 0.086, h: 0.086, d: 0.035, mountHeight: 0.45, color: 0xF5F5F0 },
+};
+
 const furnitureMeshes = [];
 const furnitureGroups = {};   // id → THREE.Group, for __preset__ furniture
 let furnitureDragState = null;        // { id, groundAnchor }
+let electricDragState  = null;        // { id }
+
+// Maps ELECTRICS_CATALOG key → electricalItems state key (for pricing sync)
+const ELECTRIC_PRICING_KEY = {
+  double_socket_3d:  'double_socket',
+  single_socket_3d:  'single_socket',
+  usb_socket_3d:     'usb_socket',
+  light_switch_3d:   'light_switch',
+  double_switch_3d:  'double_light_switch',
+  dimmer_3d:         'dimmer_switch',
+  consumer_box_3d:   'consumer_box',
+  spotlight_3d:      'ceiling_light',
+  extractor_fan_3d:  'extractor_fan',
+  tv_point_3d:       'tv_socket',
+};
 
 // Collect every snappable wall face in world space as { perpAxis:'x'|'z', pos }.
 // Includes exterior walls, partition walls, and preset room boundary walls.
@@ -2190,9 +2222,10 @@ function _setFurnitureHover(fid) {
 }
 
 function buildFurniture() {
-  // Clear hover state (meshes/groups are about to be destroyed)
+  // Clear hover + selection helpers (meshes/groups are about to be destroyed)
   _hoverMaterialBackups.length = 0;
-  if (_hoverBoxHelper) { buildingGroup.remove(_hoverBoxHelper); _hoverBoxHelper = null; }
+  if (_hoverBoxHelper)      { buildingGroup.remove(_hoverBoxHelper);      _hoverBoxHelper      = null; }
+  if (_furnitureBoxHelper)  { buildingGroup.remove(_furnitureBoxHelper);  _furnitureBoxHelper  = null; }
   _hoveredFurnitureId = null;
 
   // Remove preset groups
@@ -2289,6 +2322,101 @@ function buildFurniture() {
     buildingGroup.add(mesh);
     furnitureMeshes.push(mesh);
   });
+
+  // Restore selection BoxHelper after rebuild
+  if (_selectedFurnitureId !== null) {
+    const grp = furnitureGroups[_selectedFurnitureId];
+    const msh = furnitureMeshes.find(m => m.userData.furnitureId === _selectedFurnitureId);
+    const target = grp || msh;
+    if (target) { _furnitureBoxHelper = new THREE.BoxHelper(target, 0xffcc00); buildingGroup.add(_furnitureBoxHelper); }
+  }
+}
+
+// ─── PLACED ELECTRICS ────────────────────────────────────────────────────────
+
+const electricMeshes = [];   // { id, group }
+let _selectedElectricId  = null;
+let _electricBoxHelper   = null;
+
+let _selectedFurnitureId = null;
+let _furnitureBoxHelper  = null;
+
+// Snap depth so the group origin (= socket back face) lands on the interior wall face.
+// _snapToNearestWallFace places the origin at fd/2+M from the exterior face.
+// Interior face is at TK from exterior → fd = 2*(TK - M).
+const ELEC_SNAP_M = 0.02;
+const ELEC_FD = 2 * (TK - ELEC_SNAP_M);   // 0.24 m
+function _elecFd(_def) { return ELEC_FD; }
+
+function buildElectrics() {
+  // Remove old BoxHelper
+  if (_electricBoxHelper) { buildingGroup.remove(_electricBoxHelper); _electricBoxHelper = null; }
+
+  electricMeshes.forEach(({ group }) => {
+    buildingGroup.remove(group);
+    group.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+  });
+  electricMeshes.length = 0;
+
+  (state.electrics || []).forEach(el => {
+    const def = ELECTRICS_CATALOG[el.type];
+    if (!def) return;
+
+    const group = new THREE.Group();
+    group.userData.electricId = el.id;
+
+    // Geometry protrudes in local +z from z=0 (wall face).
+    // Backplate: back face at local z=0 (wall face), front at z=def.d*0.4
+    const bpD   = def.d * 0.40;
+    const bpGeo = new THREE.BoxGeometry(def.w, def.h, bpD);
+    const bpMat = new THREE.MeshStandardMaterial({ color: 0xE8E8E4, roughness: 0.55, metalness: 0.05 });
+    const bp    = new THREE.Mesh(bpGeo, bpMat);
+    bp.position.z = bpD / 2;   // back face at z=0
+    bp.castShadow = true;
+    group.add(bp);
+
+    // Faceplate: sits on top of backplate, protrudes further
+    const fpW = def.w * 0.85, fpH = def.h * 0.85, fpD = def.d * 0.55;
+    const fpGeo = new THREE.BoxGeometry(fpW, fpH, fpD);
+    const fpMat = new THREE.MeshStandardMaterial({ color: 0xF8F8F4, roughness: 0.40, metalness: 0.08 });
+    const fp    = new THREE.Mesh(fpGeo, fpMat);
+    fp.position.z = bpD + fpD / 2;   // stacked on backplate
+    fp.castShadow = true;
+    group.add(fp);
+
+    // Group origin = wall interior face; rotate so local +z faces into room
+    group.position.set(el.x, el.mountY, el.z);
+    group.rotation.y = el.rotY ?? 0;
+
+    buildingGroup.add(group);
+    electricMeshes.push({ id: el.id, group });
+  });
+
+  // Restore selection BoxHelper
+  if (_selectedElectricId !== null) {
+    const em = electricMeshes.find(m => m.id === _selectedElectricId);
+    if (em) {
+      _electricBoxHelper = new THREE.BoxHelper(em.group, 0xffcc00);
+      buildingGroup.add(_electricBoxHelper);
+    } else {
+      _selectedElectricId = null;  // item was deleted
+    }
+  }
+}
+
+function selectElectric(id) {
+  _selectedElectricId = (id === _selectedElectricId) ? null : id;
+  // Update BoxHelper
+  if (_electricBoxHelper) { buildingGroup.remove(_electricBoxHelper); _electricBoxHelper = null; }
+  if (_selectedElectricId !== null) {
+    const em = electricMeshes.find(m => m.id === _selectedElectricId);
+    if (em) { _electricBoxHelper = new THREE.BoxHelper(em.group, 0xffcc00); buildingGroup.add(_electricBoxHelper); }
+  }
+  markDirty();
+  if (typeof renderElectricsList === 'function') renderElectricsList();
 }
 
 // ─── INTERIOR PARTITIONS ─────────────────────────────────────────────────────
@@ -2325,10 +2453,11 @@ function buildPartitions() {
     // Trim rendered ends that abut an exterior wall
     const hw = state.width / 2, hd = state.depth / 2;
     const wallLimit = p.axis === 'x' ? hw : hd;
-    // Trim by full wall thickness so partition stops flush with the interior
-    // face of the exterior wall — avoids geometry poking through the wall face.
-    const trimStart = Math.abs(p.start + wallLimit) < 0.01 ? TK : 0;
-    const trimEnd   = Math.abs(p.end   - wallLimit) < 0.01 ? TK : 0;
+    // x-axis partitions abut left/right walls (ShapeGeometry, interior face at hw-TK) → trim TK.
+    // z-axis partitions abut front/back walls (BoxGeometry centred at hd, interior face at hd-TK/2) → trim TK/2.
+    const trimAmt   = p.axis === 'x' ? TK : TK / 2;
+    const trimStart = Math.abs(p.start + wallLimit) < 0.01 ? trimAmt : 0;
+    const trimEnd   = Math.abs(p.end   - wallLimit) < 0.01 ? trimAmt : 0;
     const rStart = p.start + trimStart;
     const rEnd   = p.end   - trimEnd;
     if (rEnd - rStart <= 0) return;
@@ -3224,14 +3353,12 @@ function updateWallLabels() {
   // Each entry: two endpoint world coords that define the line, plus the label text.
   // The label is placed at the midpoint, rotated to match the line angle in screen space.
   const wallH = state.height;
-  const imperial = state.units === 'imperial';
-  const fmt = v => imperial ? (v * 3.281).toFixed(1) + ' ft' : v.toFixed(2) + ' m';
   const dimLines = [
-    { key: 'width',  text: fmt(state.width),
+    { key: 'width',  text: fmtDim(state.width),
       p1: toScreen(-hw, floorY,  hd + off), p2: toScreen( hw, floorY,  hd + off) },
-    { key: 'depth',  text: fmt(state.depth),
+    { key: 'depth',  text: fmtDim(state.depth),
       p1: toScreen( hw + off, floorY, -hd), p2: toScreen( hw + off, floorY,  hd) },
-    { key: 'height', text: fmt(state.height),
+    { key: 'height', text: fmtDim(state.height),
       p1: toScreen(-(hw + off), 0.18,         hd),
       p2: toScreen(-(hw + off), 0.18 + wallH, hd) },
   ];
@@ -3257,30 +3384,25 @@ function updateWallLabels() {
   _partitionLabelCount = 0;
   _partitionLabelPool.forEach(el => { el.style.display = 'none'; });
 
-  if (floorplanViewMode || interiorViewMode) {
-    state.partitions.forEach(p => {
-      const len = p.end - p.start;
-      if (len <= 0) return;
-      // Label sits on the top face of the wall
-      const labelH = 0.18 + state.height;
-      const cx = p.axis === 'x' ? (p.start + p.end) / 2 : p.pos;
-      const cz = p.axis === 'x' ? p.pos : (p.start + p.end) / 2;
-      const world = new THREE.Vector3(cx, labelH, cz);
-      const v = world.project(camera);
-      if (v.z >= 1) return;
-      const el = _getPartitionLabel(vp);
-      el.style.left = ((v.x*0.5+0.5)*vr.width)+'px';
-      el.style.top  = ((-v.y*0.5+0.5)*vr.height)+'px';
-      el.textContent = len.toFixed(2)+'m';
-    });
-  }
+  state.partitions.forEach(p => {
+    const len = p.end - p.start;
+    if (len <= 0) return;
+    const labelH = 0.18 + state.height;
+    const cx = p.axis === 'x' ? (p.start + p.end) / 2 : p.pos;
+    const cz = p.axis === 'x' ? p.pos : (p.start + p.end) / 2;
+    const world = new THREE.Vector3(cx, labelH, cz);
+    const v = world.project(camera);
+    if (v.z >= 1) return;
+    const el = _getPartitionLabel(vp);
+    el.style.left = ((v.x*0.5+0.5)*vr.width)+'px';
+    el.style.top  = ((-v.y*0.5+0.5)*vr.height)+'px';
+    el.textContent = fmtDim(len);
+  });
 
   // ── Interior dimension labels: preset rooms (width + depth) ──
   _interiorLabelCount = 0;
   _interiorLabelPool.forEach(el => { el.style.display = 'none'; });
 
-  const imperial2 = state.units === 'imperial';
-  const fmtI = v => imperial2 ? (v * 3.281).toFixed(1) + ' ft' : v.toFixed(2) + ' m';
   const labelY = 0.18 + state.height;  // top face of wall
 
   // Helper: project a world point to screen {x,y,behind}
@@ -3313,20 +3435,20 @@ function updateWallLabels() {
 
       if (alongAxis === 'x') {
         // Width label along inner wall (at innerCoord in z)
-        showInteriorLabel(fmtI(r.width),
+        showInteriorLabel(fmtDim(r.width),
           toScreenI(r.offset - halfW, labelY, innerCoord),
           toScreenI(r.offset + halfW, labelY, innerCoord));
         // Depth label along the right side wall
-        showInteriorLabel(fmtI(r.depth),
+        showInteriorLabel(fmtDim(r.depth),
           toScreenI(r.offset + halfW, labelY, wallPos),
           toScreenI(r.offset + halfW, labelY, innerCoord));
       } else {
         // Width label along inner wall (at innerCoord in x)
-        showInteriorLabel(fmtI(r.width),
+        showInteriorLabel(fmtDim(r.width),
           toScreenI(innerCoord, labelY, r.offset - halfW),
           toScreenI(innerCoord, labelY, r.offset + halfW));
         // Depth label along the right side wall
-        showInteriorLabel(fmtI(r.depth),
+        showInteriorLabel(fmtDim(r.depth),
           toScreenI(wallPos,      labelY, r.offset + halfW),
           toScreenI(innerCoord,   labelY, r.offset + halfW));
       }
@@ -3422,9 +3544,39 @@ function setActivePalette(type) {
   }
 }
 
+function selectFurniture(id) {
+  _selectedFurnitureId = id;
+  if (_furnitureBoxHelper) { buildingGroup.remove(_furnitureBoxHelper); _furnitureBoxHelper = null; }
+  if (id !== null) {
+    const grp = furnitureGroups[id];
+    const msh = furnitureMeshes.find(m => m.userData.furnitureId === id);
+    const target = grp || msh;
+    if (target) { _furnitureBoxHelper = new THREE.BoxHelper(target, 0xffcc00); buildingGroup.add(_furnitureBoxHelper); }
+  }
+  markDirty();
+}
+
+function deselectAll() {
+  if (_selectedFurnitureId !== null) {
+    _selectedFurnitureId = null;
+    if (_furnitureBoxHelper) { buildingGroup.remove(_furnitureBoxHelper); _furnitureBoxHelper = null; }
+  }
+  if (_selectedElectricId !== null) {
+    _selectedElectricId = null;
+    if (_electricBoxHelper) { buildingGroup.remove(_electricBoxHelper); _electricBoxHelper = null; }
+    if (typeof renderElectricsList === 'function') renderElectricsList();
+  }
+  if (selectedHandleId !== null) {
+    selectedHandleId = null;
+    refreshHandleColors();
+    if (typeof renderSelectedOpening === 'function') renderSelectedOpening();
+  }
+  markDirty();
+}
+
 function selectHandle(id) {
-  selectedHandleId = id;
-  setActivePalette(null);
+  setActivePalette(null);   // clears selectedHandleId internally — must come first
+  selectedHandleId = id;    // re-apply after palette clear so it persists
   refreshHandleColors();
   if (typeof renderSelectedOpening === 'function') renderSelectedOpening();
 }
@@ -3616,12 +3768,38 @@ canvas.addEventListener('mousedown', e => {
   if (e.button === 0) {
     raycaster.setFromCamera(getMouseNDC(e), camera);
 
-    // All furniture (preset and free-standing) is now in furnitureMeshes
+    // Placed electric → select on first click, drag on second
+    const elecGroups0 = electricMeshes.map(em => em.group);
+    const elecHits0 = raycaster.intersectObjects(elecGroups0, true);
+    if (elecHits0.length) {
+      let hitObj0 = elecHits0[0].object;
+      while (hitObj0 && !hitObj0.userData.electricId) hitObj0 = hitObj0.parent;
+      if (hitObj0?.userData.electricId != null) {
+        const eid0 = hitObj0.userData.electricId;
+        if (_selectedElectricId === eid0) {
+          electricDragState = { id: eid0 };
+        } else {
+          deselectAll();
+          selectElectric(eid0);
+        }
+        canvas.style.cursor = 'grab';
+        return;
+      }
+    }
+
+    // Furniture → select on first click, drag on second
     const fHits = raycaster.intersectObjects(furnitureMeshes, false);
     if (fHits.length) {
       const fid = fHits[0].object.userData.furnitureId;
       if (fid != null) {
-        furnitureDragState = { id: fid, groundAnchor: raycastGround(e) };
+        if (_selectedFurnitureId === fid) {
+          const gp0 = raycastGround(e);
+          const f0 = state.furniture.find(f => f.id === fid);
+          furnitureDragState = { id: fid, groundAnchor: gp0, rawX: f0 ? f0.x : 0, rawZ: f0 ? f0.z : 0 };
+        } else {
+          deselectAll();
+          selectFurniture(fid);
+        }
         canvas.style.cursor = 'grab';
         return;
       }
@@ -3648,15 +3826,20 @@ canvas.addEventListener('mousedown', e => {
     return;
   }
 
-  // 1. Hit an opening handle → drag or select
+  // 1. Hit an opening handle → select on first click, drag on second
   const hit = raycastHandles(e);
   if (hit) {
     const op = state.openings.find(o => o.id === hit.openingId);
     if (!op) return;
-    selectHandle(op.id);
-    const ww = wallWidth(op.wall);
-    dragState = { openingId: op.id, wall: op.wall, wallW: ww };
-    canvas.style.cursor = 'grabbing';
+    if (selectedHandleId === op.id) {
+      const ww = wallWidth(op.wall);
+      dragState = { openingId: op.id, wall: op.wall, wallW: ww };
+      canvas.style.cursor = 'grabbing';
+    } else {
+      deselectAll();
+      selectHandle(op.id);
+      canvas.style.cursor = 'grab';
+    }
     return;
   }
 
@@ -3666,6 +3849,9 @@ canvas.addEventListener('mousedown', e => {
     if (wh) placeOpening(activePaletteType, wh.wallId, wh.localX);
     return;
   }
+
+  // Clicked empty space — deselect everything
+  deselectAll();
 
   // 3. Right-click or Shift+drag → pan camera
   if (e.button === 2 || e.shiftKey) {
@@ -3726,6 +3912,11 @@ window.addEventListener('mouseup', () => {
     canvas.style.cursor = 'default';
     if (typeof stateHistory !== 'undefined') stateHistory.push();
   }
+  if (electricDragState) {
+    electricDragState = null;
+    canvas.style.cursor = 'default';
+    if (typeof stateHistory !== 'undefined') stateHistory.push();
+  }
   if (furnitureDragState) {
     furnitureDragState = null;
     canvas.style.cursor = 'default';
@@ -3782,6 +3973,21 @@ window.addEventListener('mousemove', e => {
     return;
   }
 
+  // Electric drag (wall-snap repositioning)
+  if (electricDragState) {
+    const snap = _electricWallRaycast(e);
+    if (snap) {
+      const el = (state.electrics || []).find(x => x.id === electricDragState.id);
+      if (el) {
+        el.x = snap.x; el.z = snap.z; el.rotY = snap.rotY;
+        const em = electricMeshes.find(m => m.id === el.id);
+        if (em) { em.group.position.x = el.x; em.group.position.z = el.z; em.group.rotation.y = el.rotY; }
+      }
+    }
+    markDirty();
+    return;
+  }
+
   // Furniture drag
   if (furnitureDragState) {
     const gp = raycastGround(e);
@@ -3828,10 +4034,11 @@ window.addEventListener('mousemove', e => {
           }
         } else {
           // ── Free movement with boundary clamp ──────────────────────────────
-          const rawX = f.x + gp.x - furnitureDragState.groundAnchor.x;
-          const rawZ = f.z + gp.z - furnitureDragState.groundAnchor.z;
-          f.x = _snapEnabled ? _snapToGrid(rawX) : rawX;
-          f.z = _snapEnabled ? _snapToGrid(rawZ) : rawZ;
+          // Accumulate raw (unsnapped) position so grid snap doesn't resist cursor movement
+          furnitureDragState.rawX += gp.x - furnitureDragState.groundAnchor.x;
+          furnitureDragState.rawZ += gp.z - furnitureDragState.groundAnchor.z;
+          f.x = _snapEnabled ? _snapToGrid(furnitureDragState.rawX) : furnitureDragState.rawX;
+          f.z = _snapEnabled ? _snapToGrid(furnitureDragState.rawZ) : furnitureDragState.rawZ;
           if (dims) {
             const hw = state.width / 2, hd = state.depth / 2;
             const rotY = f.rotY ?? 0;
@@ -4194,7 +4401,7 @@ canvas.addEventListener('contextmenu', e => {
       danger: true,
       action() {
         p.doors.splice(i, 1);
-        stateHistory.push(); buildRoom();
+        stateHistory.push(); buildPartitions(); markDirty();
       }
     }));
 
@@ -4202,7 +4409,7 @@ canvas.addEventListener('contextmenu', e => {
       ? { icon: '🚪', label: 'Add door here', action() {
           if (!p.doors) p.doors = [];
           p.doors.push({ offset: relOffset });
-          stateHistory.push(); buildRoom();
+          stateHistory.push(); buildPartitions(); markDirty();
         }}
       : { icon: '🚪', disabled: true,
           label: wallLen < DOOR_W + DOOR_MARGIN * 2
@@ -4218,7 +4425,7 @@ canvas.addEventListener('contextmenu', e => {
       'sep',
       { icon: '✕', label: 'Delete wall', danger: true, action() {
         const idx = state.partitions.findIndex(x => x.id === pid);
-        if (idx !== -1) { state.partitions.splice(idx,1); stateHistory.push(); buildRoom(); if (typeof renderPartitionsList==='function') renderPartitionsList(); }
+        if (idx !== -1) { state.partitions.splice(idx,1); stateHistory.push(); buildPartitions(); markDirty(); if (typeof renderPartitionsList==='function') renderPartitionsList(); }
         const key = p.axis==='x' ? 'horizontal_wall' : 'vertical_wall';
         if (typeof updateItemQty==='function') updateItemQty('structuralItems', key, -1);
       }},
@@ -4261,6 +4468,44 @@ canvas.addEventListener('contextmenu', e => {
         ]);
         return;
       }
+    }
+  }
+
+  // Check placed electrics
+  const elecGroups = electricMeshes.map(em => em.group);
+  const elecHits = raycaster.intersectObjects(elecGroups, true);
+  if (elecHits.length) {
+    let hitObj = elecHits[0].object;
+    while (hitObj && !hitObj.userData.electricId) hitObj = hitObj.parent;
+    const eid = hitObj?.userData.electricId;
+    const el = (state.electrics || []).find(x => x.id === eid);
+    if (el) {
+      const def = ELECTRICS_CATALOG[el.type];
+      const elLabel = def ? def.label : el.type;
+      ctx.show(e.clientX, e.clientY, [
+        { icon: '🔌', label: elLabel, disabled: true, action() {} },
+        'sep',
+        { icon: '↑', label: 'Raise 100mm', action() {
+          el.mountY = Math.min(state.height - 0.05, el.mountY + 0.10);
+          stateHistory.push(); buildElectrics(); markDirty();
+        }},
+        { icon: '↓', label: 'Lower 100mm', action() {
+          el.mountY = Math.max(0.05, el.mountY - 0.10);
+          stateHistory.push(); buildElectrics(); markDirty();
+        }},
+        'sep',
+        { icon: '✕', label: 'Delete', danger: true, action() {
+          const pKey = ELECTRIC_PRICING_KEY[el.type];
+          if (pKey && state.electricalItems[pKey] > 0) state.electricalItems[pKey]--;
+          const _qEl = pKey ? document.getElementById('qty-' + pKey) : null;
+      if (_qEl) _qEl.textContent = state.electricalItems[pKey];
+          state.electrics = state.electrics.filter(x => x.id !== eid);
+          stateHistory.push(); buildElectrics(); markDirty();
+          if (typeof updatePriceDisplay === 'function') updatePriceDisplay();
+          if (typeof renderElectricsList === 'function') renderElectricsList();
+        }},
+      ]);
+      return;
     }
   }
 
@@ -4331,26 +4576,26 @@ window.addEventListener('keydown', e => {
 });
 
 canvas.addEventListener('wheel', e => {
-  // If hovering over a furniture piece, scroll rotates it (22.5° per notch)
-  raycaster.setFromCamera(getMouseNDC(e), camera);
-  const fWheelHits = raycaster.intersectObjects(furnitureMeshes, false);
-  if (fWheelHits.length) {
-    const fid = fWheelHits[0].object.userData.furnitureId;
-    const fw = state.furniture.find(f => f.id === fid);
-    if (fw) {
-      const step = Math.PI / 8; // 22.5°
-      fw.rotY = ((fw.rotY ?? 0) + Math.sign(e.deltaY) * step + Math.PI * 2) % (Math.PI * 2);
-      // Rotate the group (preset) or mesh (regular) directly for immediate feedback
-      const grp = furnitureGroups[fw.id];
-      if (grp) { grp.rotation.y = fw.rotY; }
-      else {
-        const mesh = furnitureMeshes.find(m => m.userData.furnitureId === fw.id);
-        if (mesh) mesh.rotation.y = fw.rotY;
+  // Rotate selected furniture with scroll (22.5° per notch) — only when already selected
+  if (_selectedFurnitureId !== null) {
+    raycaster.setFromCamera(getMouseNDC(e), camera);
+    const fWheelHits = raycaster.intersectObjects(furnitureMeshes, false);
+    if (fWheelHits.length && fWheelHits[0].object.userData.furnitureId === _selectedFurnitureId) {
+      const fw = state.furniture.find(f => f.id === _selectedFurnitureId);
+      if (fw) {
+        const step = Math.PI / 8; // 22.5°
+        fw.rotY = ((fw.rotY ?? 0) + Math.sign(e.deltaY) * step + Math.PI * 2) % (Math.PI * 2);
+        const grp = furnitureGroups[fw.id];
+        if (grp) { grp.rotation.y = fw.rotY; }
+        else {
+          const mesh = furnitureMeshes.find(m => m.userData.furnitureId === fw.id);
+          if (mesh) mesh.rotation.y = fw.rotY;
+        }
+        stateHistory.push();
+        markDirty();
+        e.preventDefault();
+        return;
       }
-      stateHistory.push();
-      markDirty();
-      e.preventDefault();
-      return;
     }
   }
   // Exponential zoom feels consistent — same number of scroll clicks regardless
@@ -4741,6 +4986,34 @@ function _ddFloorPoint(e) {
   return rc.ray.intersectPlane(plane, pt) ? pt.clone() : null;
 }
 
+// Raycast against actual wall meshes and clamp hit point to the interior face.
+// Returns { x, z, rotY } for the snapped position, or null if no wall hit.
+function _electricWallRaycast(e) {
+  const rc = new THREE.Raycaster();
+  rc.setFromCamera(getMouseNDC(e), camera);
+  const allWalls = Object.values(wallMeshes).flat();
+  const hits = rc.intersectObjects(allWalls, false);
+  if (!hits.length) return null;
+  const hit = hits[0];
+  const wallId = hit.object.userData.wallId;
+  if (!wallId) return null;
+  const hw = state.width / 2, hd = state.depth / 2;
+  const MARGIN = 0.10;
+  // Interior face: front/back walls (BoxGeometry) centered at ±hd, interior face at hd-TK/2.
+  // left/right walls (ShapeGeometry) exterior at ±hw, interior face at ±(hw-TK).
+  const interiorFace = { front: hd - TK / 2, back: -(hd - TK / 2), left: -(hw - TK), right: hw - TK };
+  const WALL_ROT = { front: Math.PI, back: 0, left: Math.PI / 2, right: -Math.PI / 2 };
+  let x = hit.point.x, z = hit.point.z;
+  if (wallId === 'front' || wallId === 'back') {
+    z = interiorFace[wallId];
+    x = Math.max(-hw + MARGIN, Math.min(hw - MARGIN, x));
+  } else {
+    x = interiorFace[wallId];
+    z = Math.max(-hd + MARGIN, Math.min(hd - MARGIN, z));
+  }
+  return { x, z, rotY: WALL_ROT[wallId] };
+}
+
 function _buildDDGhost(category, type) {
   _clearDDGhost();
   if (category === 'furniture') {
@@ -4764,6 +5037,15 @@ function _buildDDGhost(category, type) {
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x2e7d32 }));
     edges.position.y = h / 2;
     _ddGhost.add(mesh, edges);
+  } else if (category === 'electric') {
+    const def = ELECTRICS_CATALOG[type];
+    if (!def) return;
+    const geo = new THREE.BoxGeometry(def.w, def.h, def.d);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffe082, transparent: true, opacity: 0.70 });
+    const mesh = new THREE.Mesh(geo, mat);
+    _ddGhost.add(mesh);
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xf57f17 }));
+    _ddGhost.add(edges);
   }
   _ddGhost.visible = true;
   markDirty();
@@ -4781,12 +5063,29 @@ function startDragDrop(category, type, e) {
 
 function _ddOnMove(e) {
   if (!_ddState) return;
-  const pt = _ddFloorPoint(e);
-  if (pt) {
-    _ddGhost.position.set(pt.x, 0, pt.z);
-    _ddGhost.visible = true;
+  if (_ddState.category === 'electric') {
+    const def = ELECTRICS_CATALOG[_ddState.type];
+    if (def) {
+      const snap = _electricWallRaycast(e);
+      if (snap) {
+        const mountY = def.mountHeight < 0
+          ? state.height - def.h / 2 - 0.02
+          : def.mountHeight;
+        _ddGhost.position.set(snap.x, mountY, snap.z);
+        _ddGhost.rotation.y = snap.rotY;
+        _ddGhost.visible = true;
+      } else {
+        _ddGhost.visible = false;
+      }
+    }
   } else {
-    _ddGhost.visible = false;
+    const pt = _ddFloorPoint(e);
+    if (pt) {
+      _ddGhost.position.set(pt.x, 0, pt.z);
+      _ddGhost.visible = true;
+    } else {
+      _ddGhost.visible = false;
+    }
   }
   markDirty();
 }
@@ -4822,6 +5121,26 @@ function _ddOnUp(e) {
   } else if (category === 'preset') {
     if (typeof addPresetRoom === 'function') addPresetRoom(type);
     // addPresetRoom defaults to back wall; user can drag it after placement
+  } else if (category === 'electric') {
+    const def = ELECTRICS_CATALOG[type];
+    const snap = overCanvas ? _electricWallRaycast(e) : null;
+    if (def && snap) {
+      const mountY = def.mountHeight < 0
+        ? state.height - def.h / 2 - 0.02
+        : def.mountHeight;
+      const id = state.nextElectricId++;
+      state.electrics.push({ id, type, x: snap.x, z: snap.z, rotY: snap.rotY, mountY });
+      // Keep pricing qty in sync
+      const pKey = ELECTRIC_PRICING_KEY[type];
+      if (pKey && state.electricalItems[pKey] !== undefined) state.electricalItems[pKey]++;
+      const _qEl = pKey ? document.getElementById('qty-' + pKey) : null;
+      if (_qEl) _qEl.textContent = state.electricalItems[pKey];
+      stateHistory.push();
+      buildElectrics();
+      if (typeof updatePriceDisplay === 'function') updatePriceDisplay();
+      if (typeof renderElectricsList === 'function') renderElectricsList();
+      markDirty();
+    }
   }
 }
 
@@ -4832,7 +5151,9 @@ const _origUpdateCamera = updateCamera;
   // tickCamera lerps toward targets every frame — marks dirty itself if moving
   tickCamera();
   if (_dirty || _dirtyFrames > 0) {
-    if (_hoverBoxHelper) _hoverBoxHelper.update();
+    if (_hoverBoxHelper)     _hoverBoxHelper.update();
+    if (_furnitureBoxHelper) _furnitureBoxHelper.update();
+    if (_electricBoxHelper)  _electricBoxHelper.update();
     if (interiorViewMode) updateWallVisibility();
     renderer.render(scene, camera);
     updateWallLabels();

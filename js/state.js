@@ -50,6 +50,7 @@ const stateHistory = {
     if (typeof syncDimSliders === 'function') syncDimSliders();
     if (typeof renderOpeningsList === 'function') renderOpeningsList();
     if (typeof renderPartitionsList === 'function') renderPartitionsList();
+    if (typeof renderElectricsList === 'function') renderElectricsList();
     this._paused = false;
     this._updateButtons();
   },
@@ -133,6 +134,7 @@ const DEFAULT_STATE = {
   structuralItems: { sip_walls: 0, sip_floor: 0, sip_roof: 0, vertical_wall: 0, horizontal_wall: 0, mezzanine: 0 },
   roofPorchItems:  { roof_window: 0, roof_window_v2: 0, roof_window_v3: 0, pergola: 0, trellis_canopy: 0, canopy_roof_overhang: 0, veranda: 0 },
   miscItems:       { blinds: 0, windscreen: 0, glass_panels: 0, loggia_panels: 0, solid_panel: 0, smoke_alarm: 0, smoke_heat_alarm: 0 },
+  electrics: [], nextElectricId: 1,
   groundType: 'grass', structureType: 'freestanding',
   windowSillAdjust: 0,
   veranda: { enabled: false, depth: 1.5 },

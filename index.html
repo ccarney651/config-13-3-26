@@ -86,6 +86,8 @@
       <button class="tb-btn active" id="tbSnap" onclick="toggleSnapGrid()" title="Snap to grid (0.25m) — click to toggle">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h3v3H3zM9 3h3v3H9zM15 3h3v3h-3zM21 3h0M3 9h3v3H3zM9 9h3v3H9zM15 9h3v3h-3zM3 15h3v3H3zM9 15h3v3H9zM15 15h3v3h-3z"/></svg>
       </button>
+      <button class="tb-btn" id="tbUnits" onclick="toggleUnits()" title="Switch to feet &amp; inches" style="font-size:11px;font-weight:700;letter-spacing:-0.02em;width:36px">m</button>
+      <div class="tb-sep"></div>
       <button class="tb-btn" id="tbUndo" onclick="stateHistory.undo()" title="Undo" disabled>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 2.64-6.36L3 9"/></svg>
       </button>
@@ -317,7 +319,7 @@
   <div class="qty-item">
     <div class="qty-item-img"></div>
     <div class="qty-item-info">
-      <div class="qty-item-label">Roof Window — Small (w) x(h) (mm)</div>
+      <div class="qty-item-label">Roof Window — Small </div>
       <div class="qty-item-price">£1800</div>
     </div>
     <div class="qty-controls">
@@ -329,7 +331,7 @@
   <div class="qty-item">
     <div class="qty-item-img"></div>
     <div class="qty-item-info">
-      <div class="qty-item-label">Roof Window — Medium (w) x(h) (mm)</div>
+      <div class="qty-item-label">Roof Window — Medium </div>
       <div class="qty-item-price">£2000</div>
     </div>
     <div class="qty-controls">
@@ -341,7 +343,7 @@
   <div class="qty-item">
     <div class="qty-item-img"></div>
     <div class="qty-item-info">
-      <div class="qty-item-label">Roof Window — Large (w) x(h) (mm)</div>
+      <div class="qty-item-label">Roof Window — Large </div>
       <div class="qty-item-price">£2500</div>
     </div>
     <div class="qty-controls">
@@ -544,30 +546,6 @@
   <div class="qty-item">
     <div class="qty-item-img"></div>
     <div class="qty-item-info">
-      <div class="qty-item-label">Bathroom</div>
-      <div class="qty-item-price">£80</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('bathroomItems','bathroom',-1)">−</button>
-      <span class="qty-val" id="qty-bathroom">0</span>
-      <button class="qty-btn" onclick="updateItemQty('bathroomItems','bathroom',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Electric Shower</div>
-      <div class="qty-item-price">£180</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('bathroomItems','electric_shower',-1)">−</button>
-      <span class="qty-val" id="qty-electric_shower">0</span>
-      <button class="qty-btn" onclick="updateItemQty('bathroomItems','electric_shower',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
       <div class="qty-item-label">Towel Rail</div>
       <div class="qty-item-price">£150</div>
     </div>
@@ -668,18 +646,6 @@
       <button class="qty-btn" onclick="updateItemQty('heatingItems','wall_heater',-1)">−</button>
       <span class="qty-val" id="qty-wall_heater">0</span>
       <button class="qty-btn" onclick="updateItemQty('heatingItems','wall_heater',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Climate control</div>
-      <div class="qty-item-price">£850</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('heatingItems','climate_control',-1)">−</button>
-      <span class="qty-val" id="qty-climate_control">0</span>
-      <button class="qty-btn" onclick="updateItemQty('heatingItems','climate_control',1)">+</button>
     </div>
   </div>
   <div class="qty-item">
@@ -881,45 +847,45 @@
       <div class="sub-content active" data-subtab="doors-sub-standard">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="half_glazed_door" onclick="selectDoorStyle('half_glazed_door',this)" title="Half Glazed Door(w) x(h) (mm) — £1000">
+  <button class="cat-swatch" data-key="half_glazed_door" onclick="selectDoorStyle('half_glazed_door',this)" title="Half Glazed Door — £1000">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Half Glazed Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Half Glazed Door</div>
   </button>
-  <button class="cat-swatch" data-key="single_glass_door" onclick="selectDoorStyle('single_glass_door',this)" title="Single Glass Door(w) x(h) (mm) — £1200">
+  <button class="cat-swatch" data-key="single_glass_door" onclick="selectDoorStyle('single_glass_door',this)" title="Single Glass Door — £1200">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Single Glass Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Single Glass Door</div>
   </button>
-  <button class="cat-swatch" data-key="double_door" onclick="selectDoorStyle('double_door',this)" title="Double Door(w) x(h) (mm) — £1800">
+  <button class="cat-swatch" data-key="double_door" onclick="selectDoorStyle('double_door',this)" title="Double Door — £1800">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Double Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Double Door</div>
   </button>
-  <button class="cat-swatch" data-key="double_solid_door" onclick="selectDoorStyle('double_solid_door',this)" title="Double Solid Door(w) x(h) (mm) — £2100">
+  <button class="cat-swatch" data-key="double_solid_door" onclick="selectDoorStyle('double_solid_door',this)" title="Double Solid Door — £2100">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Double Solid Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Double Solid Door</div>
   </button>
-  <button class="cat-swatch" data-key="georgian_6_pane_single_door" onclick="selectDoorStyle('georgian_6_pane_single_door',this)" title="Georgian 6 Pane Single Door(w) x(h) (mm) — £1200">
+  <button class="cat-swatch" data-key="georgian_6_pane_single_door" onclick="selectDoorStyle('georgian_6_pane_single_door',this)" title="Georgian 6 Pane Single Door — £1200">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Georgian 6 Pane Single Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Georgian 6 Pane Single Door</div>
   </button>
-  <button class="cat-swatch" data-key="clad_door" onclick="selectDoorStyle('clad_door',this)" title="Clad Door(w) x(h) (mm) — £1000">
+  <button class="cat-swatch" data-key="clad_door" onclick="selectDoorStyle('clad_door',this)" title="Clad Door — £1000">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Clad Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Clad Door</div>
   </button>
-  <button class="cat-swatch" data-key="single_door" onclick="selectDoorStyle('single_door',this)" title="Single Door(w) x(h) (mm) — £900">
+  <button class="cat-swatch" data-key="single_door" onclick="selectDoorStyle('single_door',this)" title="Single Door — £900">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Single Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Single Door</div>
   </button>
-  <button class="cat-swatch" data-key="solid_door" onclick="selectDoorStyle('solid_door',this)" title="Solid Door(w) x(h) (mm) — £1150">
+  <button class="cat-swatch" data-key="solid_door" onclick="selectDoorStyle('solid_door',this)" title="Solid Door — £1150">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Solid Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Solid Door</div>
   </button>
-  <button class="cat-swatch" data-key="georgian_10_pane_double_door" onclick="selectDoorStyle('georgian_10_pane_double_door',this)" title="Georgian 10 Pane Double Door(w) x(h) (mm) — £2400">
+  <button class="cat-swatch" data-key="georgian_10_pane_double_door" onclick="selectDoorStyle('georgian_10_pane_double_door',this)" title="Georgian 10 Pane Double Door — £2400">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Georgian 10 Pane Double Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Georgian 10 Pane Double Door</div>
   </button>
-  <button class="cat-swatch" data-key="frameless_door" onclick="selectDoorStyle('frameless_door',this)" title="Frameless Door(w) x(h) (mm) — £1000">
+  <button class="cat-swatch" data-key="frameless_door" onclick="selectDoorStyle('frameless_door',this)" title="Frameless Door — £1000">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Frameless Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Frameless Door</div>
   </button>
 </div>
 
@@ -928,29 +894,21 @@
       <div class="sub-content" data-subtab="doors-sub-sliding">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="sliding_2_part_door" onclick="selectDoorStyle('sliding_2_part_door',this)" title="Sliding 2-Part Door(w) x(h) (mm) — £3000">
+  <button class="cat-swatch" data-key="sliding_2_part_door" onclick="selectDoorStyle('sliding_2_part_door',this)" title="Sliding 2-Part Door — £3000">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Sliding 2-Part Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Sliding 2-Part Door</div>
   </button>
-  <button class="cat-swatch" data-key="stacker_door" onclick="selectDoorStyle('stacker_door',this)" title="Stacker Door(w) x(h) (mm) — £3100">
+  <button class="cat-swatch" data-key="stacker_door" onclick="selectDoorStyle('stacker_door',this)" title="Stacker Door — £3100">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Stacker Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Stacker Door</div>
   </button>
-  <button class="cat-swatch" data-key="sliding_4_part_door" onclick="selectDoorStyle('sliding_4_part_door',this)" title="Sliding 4-Part Door(w) x(h) (mm) — £5200">
+  <button class="cat-swatch" data-key="sliding_4_part_door" onclick="selectDoorStyle('sliding_4_part_door',this)" title="Sliding 4-Part Door — £5200">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Sliding 4-Part Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Sliding 4-Part Door</div>
   </button>
-  <button class="cat-swatch" data-key="sliding_4_part_door" onclick="selectDoorStyle('sliding_4_part_door',this)" title="Sliding 4-Part Door(w) x(h) (mm) — £4000">
+  <button class="cat-swatch" data-key="sliding_3_part_door" onclick="selectDoorStyle('sliding_3_part_door',this)" title="Sliding 3-Part Door — £3800">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Sliding 4-Part Door(w) x(h) (mm)</div>
-  </button>
-  <button class="cat-swatch" data-key="stacker_door" onclick="selectDoorStyle('stacker_door',this)" title="Stacker Door(w) x(h) (mm) — £3500">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Stacker Door(w) x(h) (mm)</div>
-  </button>
-  <button class="cat-swatch" data-key="sliding_3_part_door" onclick="selectDoorStyle('sliding_3_part_door',this)" title="Sliding 3-Part Door(w) x(h) (mm) — £3800">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Sliding 3-Part Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Sliding 3-Part Door</div>
   </button>
 </div>
 
@@ -959,17 +917,17 @@
       <div class="sub-content" data-subtab="doors-sub-folding">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="folding_4_part_door" onclick="selectDoorStyle('folding_4_part_door',this)" title="Folding 4-Part Door(w) x(h) (mm) — £3300">
+  <button class="cat-swatch" data-key="folding_4_part_door" onclick="selectDoorStyle('folding_4_part_door',this)" title="Folding 4-Part Door — £3300">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Folding 4-Part Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Folding 4-Part Door</div>
   </button>
-  <button class="cat-swatch" data-key="folding_3_part_door" onclick="selectDoorStyle('folding_3_part_door',this)" title="Folding 3-Part Door(w) x(h) (mm) — £2500">
+  <button class="cat-swatch" data-key="folding_3_part_door" onclick="selectDoorStyle('folding_3_part_door',this)" title="Folding 3-Part Door — £2500">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Folding 3-Part Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Folding 3-Part Door</div>
   </button>
-  <button class="cat-swatch" data-key="folding_5_part_door" onclick="selectDoorStyle('folding_5_part_door',this)" title="Folding 5-Part Door(w) x(h) (mm) — £4200">
+  <button class="cat-swatch" data-key="folding_5_part_door" onclick="selectDoorStyle('folding_5_part_door',this)" title="Folding 5-Part Door — £4200">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Folding 5-Part Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Folding 5-Part Door</div>
   </button>
 </div>
 
@@ -978,13 +936,13 @@
       <div class="sub-content" data-subtab="doors-sub-interior">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="interior_cavity_door" onclick="selectDoorStyle('interior_cavity_door',this)" title="Interior Cavity Door(w) x(h) (mm) — £550">
+  <button class="cat-swatch" data-key="interior_cavity_door" onclick="selectDoorStyle('interior_cavity_door',this)" title="Interior Cavity Door — £550">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Interior Cavity Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Interior Cavity Door</div>
   </button>
-  <button class="cat-swatch" data-key="interior_door" onclick="selectDoorStyle('interior_door',this)" title="Interior Door(w) x(h) (mm) — £450">
+  <button class="cat-swatch" data-key="interior_door" onclick="selectDoorStyle('interior_door',this)" title="Interior Door — £450">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Interior Door(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Interior Door</div>
   </button>
 </div>
 
@@ -1011,29 +969,21 @@
       <div class="sub-content active" data-subtab="windows-sub-fixed">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="georgian_10_pane_fixed_window" onclick="selectWindowStyle('georgian_10_pane_fixed_window',this)" title="Georgian 10 Pane Fixed Window(w) x(h) (mm) — £1000">
+  <button class="cat-swatch" data-key="georgian_10_pane_fixed_window" onclick="selectWindowStyle('georgian_10_pane_fixed_window',this)" title="Georgian 10 Pane Fixed Window — £1000">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Georgian 10 Pane Fixed Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Georgian 10 Pane Fixed Window</div>
   </button>
-  <button class="cat-swatch" data-key="glass_window" onclick="selectWindowStyle('glass_window',this)" title="Glass Window(w) x(h) (mm) — £1000">
+  <button class="cat-swatch" data-key="glass_window" onclick="selectWindowStyle('glass_window',this)" title="Glass Window — £1000">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Glass Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Glass Window</div>
   </button>
-  <button class="cat-swatch" data-key="fixed_window" onclick="selectWindowStyle('fixed_window',this)" title="Fixed Window(w) x(h) (mm) — £900">
+  <button class="cat-swatch" data-key="fixed_window" onclick="selectWindowStyle('fixed_window',this)" title="Fixed Window — £900">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Fixed Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Fixed Window</div>
   </button>
-  <button class="cat-swatch" data-key="fixed_window" onclick="selectWindowStyle('fixed_window',this)" title="Fixed Window(w) x(h) (mm) — £300">
+  <button class="cat-swatch" data-key="top_open_fixed_window" onclick="selectWindowStyle('top_open_fixed_window',this)" title="Top Open Fixed Window — £700">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Fixed Window(w) x(h) (mm)</div>
-  </button>
-  <button class="cat-swatch" data-key="fixed_window" onclick="selectWindowStyle('fixed_window',this)" title="Fixed Window(w) x(h) (mm) — £500">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Fixed Window(w) x(h) (mm)</div>
-  </button>
-  <button class="cat-swatch" data-key="top_open_fixed_window" onclick="selectWindowStyle('top_open_fixed_window',this)" title="Top Open Fixed Window(w) x(h) (mm) — £700">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Top Open Fixed Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Top Open Fixed Window</div>
   </button>
 </div>
 
@@ -1042,17 +992,13 @@
       <div class="sub-content" data-subtab="windows-sub-tilt_turn">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="tilt_n_turn_top_window" onclick="selectWindowStyle('tilt_n_turn_top_window',this)" title="Tilt&#39;n&#39;turn Top Window(w) x(h) (mm) — £250">
+  <button class="cat-swatch" data-key="tilt_n_turn_top_window" onclick="selectWindowStyle('tilt_n_turn_top_window',this)" title="Tilt&#39;n&#39;turn Top Window — £250">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Tilt&#39;n&#39;turn Top Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Tilt&#39;n&#39;turn Top Window</div>
   </button>
-  <button class="cat-swatch" data-key="tilt_n_turn_window" onclick="selectWindowStyle('tilt_n_turn_window',this)" title="Tilt&#39;n&#39;turn Window(w) x(h) (mm) — £250">
+  <button class="cat-swatch" data-key="tilt_n_turn_window" onclick="selectWindowStyle('tilt_n_turn_window',this)" title="Tilt'n'turn Window — £250">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Tilt&#39;n&#39;turn Window(w) x(h) (mm)</div>
-  </button>
-  <button class="cat-swatch" data-key="tilt_n_turn_window" onclick="selectWindowStyle('tilt_n_turn_window',this)" title="Tilt&#39;n&#39;turn Window(w) x(h) (mm) — £350">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Tilt&#39;n&#39;turn Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Tilt'n'turn Window</div>
   </button>
 </div>
 
@@ -1061,29 +1007,17 @@
       <div class="sub-content" data-subtab="windows-sub-awning">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="awning_window" onclick="selectWindowStyle('awning_window',this)" title="Awning Window(w) x(h) (mm) — £300">
+  <button class="cat-swatch" data-key="awning_window" onclick="selectWindowStyle('awning_window',this)" title="Awning Window — £300">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Awning Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Awning Window</div>
   </button>
-  <button class="cat-swatch" data-key="awning_window" onclick="selectWindowStyle('awning_window',this)" title="Awning Window(w) x(h) (mm) — £800">
+  <button class="cat-swatch" data-key="awning_vertical_window" onclick="selectWindowStyle('awning_vertical_window',this)" title="Awning Vertical Window — £507">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Awning Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Awning Vertical Window</div>
   </button>
-  <button class="cat-swatch" data-key="awning_vertical_window" onclick="selectWindowStyle('awning_vertical_window',this)" title="Awning Vertical Window(w) x(h) (mm) — £507">
+  <button class="cat-swatch" data-key="double_awning_window" onclick="selectWindowStyle('double_awning_window',this)" title="Double Awning Window — £1500">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Awning Vertical Window(w) x(h) (mm)</div>
-  </button>
-  <button class="cat-swatch" data-key="awning_vertical_window" onclick="selectWindowStyle('awning_vertical_window',this)" title="Awning Vertical Window(w) x(h) (mm) — £800">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Awning Vertical Window(w) x(h) (mm)</div>
-  </button>
-  <button class="cat-swatch" data-key="awning_window" onclick="selectWindowStyle('awning_window',this)" title="Awning Window(w) x(h) (mm) — £500">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Awning Window(w) x(h) (mm)</div>
-  </button>
-  <button class="cat-swatch" data-key="double_awning_window" onclick="selectWindowStyle('double_awning_window',this)" title="Double Awning Window(w) x(h) (mm) — £1500">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Double Awning Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Double Awning Window</div>
   </button>
 </div>
 
@@ -1092,17 +1026,17 @@
       <div class="sub-content" data-subtab="windows-sub-hung">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="double_hung_bar_window" onclick="selectWindowStyle('double_hung_bar_window',this)" title="Double Hung Bar Window(w) x(h) (mm) — £1000">
+  <button class="cat-swatch" data-key="double_hung_bar_window" onclick="selectWindowStyle('double_hung_bar_window',this)" title="Double Hung Bar Window — £1000">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Double Hung Bar Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Double Hung Bar Window</div>
   </button>
-  <button class="cat-swatch" data-key="double_hung_window" onclick="selectWindowStyle('double_hung_window',this)" title="Double Hung Window(w) x(h) (mm) — £568">
+  <button class="cat-swatch" data-key="double_hung_window" onclick="selectWindowStyle('double_hung_window',this)" title="Double Hung Window — £568">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Double Hung Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Double Hung Window</div>
   </button>
-  <button class="cat-swatch" data-key="double_hung_bar_small_window" onclick="selectWindowStyle('double_hung_bar_small_window',this)" title="Double Hung Bar Small Window(w) x(h) (mm) — £600">
+  <button class="cat-swatch" data-key="double_hung_bar_small_window" onclick="selectWindowStyle('double_hung_bar_small_window',this)" title="Double Hung Bar Small Window — £600">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Double Hung Bar Small Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Double Hung Bar Small Window</div>
   </button>
 </div>
 
@@ -1111,29 +1045,29 @@
       <div class="sub-content" data-subtab="windows-sub-gable">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="gable_window_front" onclick="selectWindowStyle('gable_window_front',this)" title="Gable Window Front(w) x(h) (mm) — £300">
+  <button class="cat-swatch" data-key="gable_window_front" onclick="selectWindowStyle('gable_window_front',this)" title="Gable Window Front — £300">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Gable Window Front(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Gable Window Front</div>
   </button>
-  <button class="cat-swatch" data-key="gable_window_1p" onclick="selectWindowStyle('gable_window_1p',this)" title="Gable Window 1P(w) x(h) (mm) — £500">
+  <button class="cat-swatch" data-key="gable_window_1p" onclick="selectWindowStyle('gable_window_1p',this)" title="Gable Window 1P — £500">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Gable Window 1P(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Gable Window 1P</div>
   </button>
-  <button class="cat-swatch" data-key="gable_window_3p" onclick="selectWindowStyle('gable_window_3p',this)" title="Gable Window 3P(w) x(h) (mm) — £600">
+  <button class="cat-swatch" data-key="gable_window_3p" onclick="selectWindowStyle('gable_window_3p',this)" title="Gable Window 3P — £600">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Gable Window 3P(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Gable Window 3P</div>
   </button>
-  <button class="cat-swatch" data-key="gable_window_front_gap" onclick="selectWindowStyle('gable_window_front_gap',this)" title="Gable Window Front Gap(w) x(h) (mm) — £300">
+  <button class="cat-swatch" data-key="gable_window_front_gap" onclick="selectWindowStyle('gable_window_front_gap',this)" title="Gable Window Front Gap — £300">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Gable Window Front Gap(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Gable Window Front Gap</div>
   </button>
-  <button class="cat-swatch" data-key="gable_window_rear_gap" onclick="selectWindowStyle('gable_window_rear_gap',this)" title="Gable Window Rear Gap(w) x(h) (mm) — £300">
+  <button class="cat-swatch" data-key="gable_window_rear_gap" onclick="selectWindowStyle('gable_window_rear_gap',this)" title="Gable Window Rear Gap — £300">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Gable Window Rear Gap(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Gable Window Rear Gap</div>
   </button>
-  <button class="cat-swatch" data-key="gable_window_rear" onclick="selectWindowStyle('gable_window_rear',this)" title="Gable Window Rear(w) x(h) (mm) — £300">
+  <button class="cat-swatch" data-key="gable_window_rear" onclick="selectWindowStyle('gable_window_rear',this)" title="Gable Window Rear — £300">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Gable Window Rear(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Gable Window Rear</div>
   </button>
 </div>
 
@@ -1142,9 +1076,9 @@
       <div class="sub-content" data-subtab="windows-sub-sliding">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="sliding_window" onclick="selectWindowStyle('sliding_window',this)" title="Sliding Window(w) x(h) (mm) — £1500">
+  <button class="cat-swatch" data-key="sliding_window" onclick="selectWindowStyle('sliding_window',this)" title="Sliding Window — £1500">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Sliding Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Sliding Window</div>
   </button>
 </div>
 
@@ -1153,13 +1087,13 @@
       <div class="sub-content" data-subtab="windows-sub-split">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="split_window" onclick="selectWindowStyle('split_window',this)" title="Split Window(w) x(h) (mm) — £593">
+  <button class="cat-swatch" data-key="split_window" onclick="selectWindowStyle('split_window',this)" title="Split Window — £593">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Split Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Split Window</div>
   </button>
-  <button class="cat-swatch" data-key="georgian_6_pane_split_window" onclick="selectWindowStyle('georgian_6_pane_split_window',this)" title="Georgian 6 Pane Split Window(w) x(h) (mm) — £1200">
+  <button class="cat-swatch" data-key="georgian_6_pane_split_window" onclick="selectWindowStyle('georgian_6_pane_split_window',this)" title="Georgian 6 Pane Split Window — £1200">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Georgian 6 Pane Split Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Georgian 6 Pane Split Window</div>
   </button>
 </div>
 
@@ -1168,9 +1102,9 @@
       <div class="sub-content" data-subtab="windows-sub-bathroom">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="bathroom_frost_window" onclick="selectWindowStyle('bathroom_frost_window',this)" title="Bathroom Frost Window(w) x(h) (mm) — £312">
+  <button class="cat-swatch" data-key="bathroom_frost_window" onclick="selectWindowStyle('bathroom_frost_window',this)" title="Bathroom Frost Window — £312">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Bathroom Frost Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Bathroom Frost Window</div>
   </button>
 </div>
 
@@ -1179,9 +1113,9 @@
       <div class="sub-content" data-subtab="windows-sub-other">
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="top_open_window" onclick="selectWindowStyle('top_open_window',this)" title="Top open Window(w) x(h) (mm) — £900">
+  <button class="cat-swatch" data-key="top_open_window" onclick="selectWindowStyle('top_open_window',this)" title="Top open Window — £900">
     <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Top open Window(w) x(h) (mm)</div>
+    <div class="cat-swatch-label">Top open Window</div>
   </button>
 </div>
 
@@ -1194,15 +1128,15 @@
       <div class="section-title">Glazing Type</div>
 
 <div class="swatch-grid">
-  <button class="cat-swatch" data-key="triple" onclick="selectGlazingType('triple',this)" title="Triple — £1100">
+  <button class="cat-swatch" data-key="triple" onclick="selectGlazingType(this)" title="Triple — £1100">
     <div class="cat-swatch-img"></div>
     <div class="cat-swatch-label">Triple</div>
   </button>
-  <button class="cat-swatch" data-key="single" onclick="selectGlazingType('single',this)" title="Single — £500">
+  <button class="cat-swatch" data-key="single" onclick="selectGlazingType(this)" title="Single — £500">
     <div class="cat-swatch-img"></div>
     <div class="cat-swatch-label">Single</div>
   </button>
-  <button class="cat-swatch" data-key="split" onclick="selectGlazingType('split',this)" title="Split — £800">
+  <button class="cat-swatch" data-key="split" onclick="selectGlazingType(this)" title="Split — £800">
     <div class="cat-swatch-img"></div>
     <div class="cat-swatch-label">Split</div>
   </button>
@@ -1404,10 +1338,6 @@
     <div class="cat-swatch-img"></div>
     <div class="cat-swatch-label">Melamine Boards</div>
   </button>
-  <button class="cat-swatch" data-key="melamine_boards_finished_walls" onclick="selectInteriorWalls('melamine_boards_finished_walls',this)" title="Melamine Boards Finished Walls — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Melamine Boards</div>
-  </button>
   <button class="cat-swatch" data-key="studs_membrane_finished_walls" onclick="selectInteriorWalls('studs_membrane_finished_walls',this)" title="Studs & Membrane Finished Walls — £100/M2">
     <div class="cat-swatch-img"></div>
     <div class="cat-swatch-label">Studs & Membrane</div>
@@ -1443,10 +1373,6 @@
   <button class="cat-swatch" data-key="white_finished_walls" onclick="selectInteriorWalls('white_finished_walls',this)" title="White Finished Walls — £100/M2">
     <div class="cat-swatch-img"></div>
     <div class="cat-swatch-label">White</div>
-  </button>
-  <button class="cat-swatch" data-key="light_blue_finished_walls" onclick="selectInteriorWalls('light_blue_finished_walls',this)" title="Light Blue Finished Walls — £100/M2">
-    <div class="cat-swatch-img"></div>
-    <div class="cat-swatch-label">Light Blue</div>
   </button>
   <button class="cat-swatch" data-key="alder_wood_finished_walls" onclick="selectInteriorWalls('alder_wood_finished_walls',this)" title="Alder Wood Finished Walls — £100/M2">
     <div class="cat-swatch-img"></div>
@@ -1896,6 +1822,26 @@
 
   <div class="tab-pane" id="tab-electrics">
 
+    <!-- ── Place & manage electricals ─────────────────────────────────── -->
+    <div class="section">
+      <div class="section-title">Place Electricals</div>
+      <p class="elec-hint">Drag onto a wall to place · Drag to move · Right-click to adjust or delete</p>
+      <div class="drag-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','double_socket_3d',event)">Double Socket <span class="drag-price">£130</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','single_socket_3d',event)">Single Socket <span class="drag-price">£85</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','usb_socket_3d',event)">USB Socket <span class="drag-price">£150</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','tv_point_3d',event)">TV Point <span class="drag-price">£170</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','light_switch_3d',event)">Light Switch <span class="drag-price">£80</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','double_switch_3d',event)">Double Switch <span class="drag-price">£100</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','dimmer_3d',event)">Dimmer Switch <span class="drag-price">£100</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','consumer_box_3d',event)">Consumer Unit <span class="drag-price">£1,030</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','spotlight_3d',event)">Spotlight <span class="drag-price">£95</span></button>
+        <button class="drag-btn" onpointerdown="startDragDrop('electric','extractor_fan_3d',event)">Extractor Fan <span class="drag-price">£100</span></button>
+      </div>
+      <div id="electricsList"></div>
+    </div>
+
+    <!-- ── Service connections ─────────────────────────────────────────── -->
     <div class="section">
       <div class="section-title">Service Connections</div>
       <div class="checkbox-row">
@@ -1904,478 +1850,47 @@
       </div>
     </div>
 
-    <div class="section">
+    <!-- ── Additional items (quote only, no 3D placement) ─────────────── -->
+    <details class="section elec-extras">
+      <summary class="section-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center">
+        Additional Items <span class="elec-extras-arrow">›</span>
+      </summary>
+      <p class="elec-hint" style="margin-top:6px">Counted for the quote but not placed in 3D.</p>
 
-      <div class="section-title">Lighting & Electrics</div>
+      <div class="elec-extra-group">Sockets</div>
+      <div class="elec-row"><span>Smart Socket</span><span class="elec-price">£150</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','smart_socket',-1)">−</button><span class="qty-val" id="qty-smart_socket">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','smart_socket',1)">+</button></div></div>
+      <div class="elec-row"><span>Floor Socket</span><span class="elec-price">£150</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','floor_socket',-1)">−</button><span class="qty-val" id="qty-floor_socket">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','floor_socket',1)">+</button></div></div>
+      <div class="elec-row"><span>External Socket</span><span class="elec-price">£180</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','external_socket',-1)">−</button><span class="qty-val" id="qty-external_socket">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','external_socket',1)">+</button></div></div>
+      <div class="elec-row"><span>Shaver Socket</span><span class="elec-price">£150</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','shaver_socket',-1)">−</button><span class="qty-val" id="qty-shaver_socket">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','shaver_socket',1)">+</button></div></div>
+      <div class="elec-row"><span>Phone Socket</span><span class="elec-price">£100</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','phone_socket',-1)">−</button><span class="qty-val" id="qty-phone_socket">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','phone_socket',1)">+</button></div></div>
 
-<div class="sub-tabs">
-  <button class="sub-tab active" onclick="filterSubTab('elec-sub','sockets',this)">Sockets</button>
-  <button class="sub-tab" onclick="filterSubTab('elec-sub','switches',this)">Switches</button>
-  <button class="sub-tab" onclick="filterSubTab('elec-sub','lights',this)">Lights</button>
-  <button class="sub-tab" onclick="filterSubTab('elec-sub','other',this)">Other</button>
-</div>
+      <div class="elec-extra-group">Switches</div>
+      <div class="elec-row"><span>2-Gang Dimmer</span><span class="elec-price">£110</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','2_gang_dimmer_switch',-1)">−</button><span class="qty-val" id="qty-2_gang_dimmer_switch">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','2_gang_dimmer_switch',1)">+</button></div></div>
+      <div class="elec-row"><span>3-Gang Dimmer</span><span class="elec-price">£180</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','3_gang_dimmer',-1)">−</button><span class="qty-val" id="qty-3_gang_dimmer">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','3_gang_dimmer',1)">+</button></div></div>
+      <div class="elec-row"><span>4-Gang Dimmer</span><span class="elec-price">£210</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','4_gang_dimmer',-1)">−</button><span class="qty-val" id="qty-4_gang_dimmer">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','4_gang_dimmer',1)">+</button></div></div>
+      <div class="elec-row"><span>Rotary Switch</span><span class="elec-price">£175</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','rotary_switch',-1)">−</button><span class="qty-val" id="qty-rotary_switch">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','rotary_switch',1)">+</button></div></div>
+      <div class="elec-row"><span>Store Switch</span><span class="elec-price">£100</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','store_switch',-1)">−</button><span class="qty-val" id="qty-store_switch">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','store_switch',1)">+</button></div></div>
 
-      <div class="sub-content active" data-subtab="elec-sub-sockets">
+      <div class="elec-extra-group">Lighting</div>
+      <div class="elec-row"><span>Wall Light</span><span class="elec-price">£140</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','wall_light',-1)">−</button><span class="qty-val" id="qty-wall_light">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','wall_light',1)">+</button></div></div>
+      <div class="elec-row"><span>Up/Down Light</span><span class="elec-price">£140</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','up_down_light',-1)">−</button><span class="qty-val" id="qty-up_down_light">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','up_down_light',1)">+</button></div></div>
+      <div class="elec-row"><span>Strip Light</span><span class="elec-price">£200</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','strip_light',-1)">−</button><span class="qty-val" id="qty-strip_light">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','strip_light',1)">+</button></div></div>
+      <div class="elec-row"><span>Track Light</span><span class="elec-price">£350</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','track_light',-1)">−</button><span class="qty-val" id="qty-track_light">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','track_light',1)">+</button></div></div>
+      <div class="elec-row"><span>Track Light (Ceiling)</span><span class="elec-price">£350</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','track_light_ceiling',-1)">−</button><span class="qty-val" id="qty-track_light_ceiling">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','track_light_ceiling',1)">+</button></div></div>
+      <div class="elec-row"><span>Panel Light</span><span class="elec-price">£250</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','panel_light',-1)">−</button><span class="qty-val" id="qty-panel_light">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','panel_light',1)">+</button></div></div>
+      <div class="elec-row"><span>Linear Wall Light</span><span class="elec-price">£400</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','linear_wall_light',-1)">−</button><span class="qty-val" id="qty-linear_wall_light">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','linear_wall_light',1)">+</button></div></div>
+      <div class="elec-row"><span>External Ceiling Light</span><span class="elec-price">£95</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','external_ceiling_light',-1)">−</button><span class="qty-val" id="qty-external_ceiling_light">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','external_ceiling_light',1)">+</button></div></div>
+      <div class="elec-row"><span>Security Light + PIR</span><span class="elec-price">£235</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','security_light_with_pir',-1)">−</button><span class="qty-val" id="qty-security_light_with_pir">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','security_light_with_pir',1)">+</button></div></div>
 
-<div class="qty-grid">
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Single socket</div>
-      <div class="qty-item-price">£85</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','single_socket',-1)">−</button>
-      <span class="qty-val" id="qty-single_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','single_socket',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Smart Socket</div>
-      <div class="qty-item-price">£150</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','smart_socket',-1)">−</button>
-      <span class="qty-val" id="qty-smart_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','smart_socket',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">TV socket</div>
-      <div class="qty-item-price">£170</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','tv_socket',-1)">−</button>
-      <span class="qty-val" id="qty-tv_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','tv_socket',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Shaver Socket</div>
-      <div class="qty-item-price">£150</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','shaver_socket',-1)">−</button>
-      <span class="qty-val" id="qty-shaver_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','shaver_socket',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Phone socket</div>
-      <div class="qty-item-price">£100</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','phone_socket',-1)">−</button>
-      <span class="qty-val" id="qty-phone_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','phone_socket',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Floor Socket</div>
-      <div class="qty-item-price">£150</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','floor_socket',-1)">−</button>
-      <span class="qty-val" id="qty-floor_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','floor_socket',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Double socket</div>
-      <div class="qty-item-price">£130</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','double_socket',-1)">−</button>
-      <span class="qty-val" id="qty-double_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','double_socket',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">External socket</div>
-      <div class="qty-item-price">£180</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','external_socket',-1)">−</button>
-      <span class="qty-val" id="qty-external_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','external_socket',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">USB socket</div>
-      <div class="qty-item-price">£150</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','usb_socket',-1)">−</button>
-      <span class="qty-val" id="qty-usb_socket">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','usb_socket',1)">+</button>
-    </div>
-  </div>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="elec-sub-switches">
-
-<div class="qty-grid">
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Dimmer switch</div>
-      <div class="qty-item-price">£100</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','dimmer_switch',-1)">−</button>
-      <span class="qty-val" id="qty-dimmer_switch">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','dimmer_switch',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">3 Gang Dimmer</div>
-      <div class="qty-item-price">£180</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','3_gang_dimmer',-1)">−</button>
-      <span class="qty-val" id="qty-3_gang_dimmer">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','3_gang_dimmer',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">2 Gang Dimmer switch</div>
-      <div class="qty-item-price">£110</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','2_gang_dimmer_switch',-1)">−</button>
-      <span class="qty-val" id="qty-2_gang_dimmer_switch">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','2_gang_dimmer_switch',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Rotary switch</div>
-      <div class="qty-item-price">£175</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','rotary_switch',-1)">−</button>
-      <span class="qty-val" id="qty-rotary_switch">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','rotary_switch',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Store Switch</div>
-      <div class="qty-item-price">£100</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','store_switch',-1)">−</button>
-      <span class="qty-val" id="qty-store_switch">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','store_switch',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">4 Gang Dimmer</div>
-      <div class="qty-item-price">£210</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','4_gang_dimmer',-1)">−</button>
-      <span class="qty-val" id="qty-4_gang_dimmer">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','4_gang_dimmer',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Light switch</div>
-      <div class="qty-item-price">£80</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','light_switch',-1)">−</button>
-      <span class="qty-val" id="qty-light_switch">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','light_switch',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Double Light switch</div>
-      <div class="qty-item-price">£100</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','double_light_switch',-1)">−</button>
-      <span class="qty-val" id="qty-double_light_switch">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','double_light_switch',1)">+</button>
-    </div>
-  </div>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="elec-sub-lights">
-
-<div class="qty-grid">
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Track light</div>
-      <div class="qty-item-price">£350</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','track_light',-1)">−</button>
-      <span class="qty-val" id="qty-track_light">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','track_light',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Linear Wall Light</div>
-      <div class="qty-item-price">£400</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','linear_wall_light',-1)">−</button>
-      <span class="qty-val" id="qty-linear_wall_light">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','linear_wall_light',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Security Light with PIR</div>
-      <div class="qty-item-price">£235</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','security_light_with_pir',-1)">−</button>
-      <span class="qty-val" id="qty-security_light_with_pir">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','security_light_with_pir',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">External Ceiling light</div>
-      <div class="qty-item-price">£95</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','external_ceiling_light',-1)">−</button>
-      <span class="qty-val" id="qty-external_ceiling_light">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','external_ceiling_light',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Strip Light</div>
-      <div class="qty-item-price">£200</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','strip_light',-1)">−</button>
-      <span class="qty-val" id="qty-strip_light">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','strip_light',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Up/down light</div>
-      <div class="qty-item-price">£140</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','up_down_light',-1)">−</button>
-      <span class="qty-val" id="qty-up_down_light">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','up_down_light',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Track light ceiling</div>
-      <div class="qty-item-price">£350</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','track_light_ceiling',-1)">−</button>
-      <span class="qty-val" id="qty-track_light_ceiling">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','track_light_ceiling',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Panel Light</div>
-      <div class="qty-item-price">£250</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','panel_light',-1)">−</button>
-      <span class="qty-val" id="qty-panel_light">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','panel_light',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Wall light</div>
-      <div class="qty-item-price">£140</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','wall_light',-1)">−</button>
-      <span class="qty-val" id="qty-wall_light">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','wall_light',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Ceiling light</div>
-      <div class="qty-item-price">£95</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','ceiling_light',-1)">−</button>
-      <span class="qty-val" id="qty-ceiling_light">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','ceiling_light',1)">+</button>
-    </div>
-  </div>
-</div>
-
-      </div>
-
-      <div class="sub-content" data-subtab="elec-sub-other">
-
-<div class="qty-grid">
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Isolator 20A</div>
-      <div class="qty-item-price">£110</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','isolator_20a',-1)">−</button>
-      <span class="qty-val" id="qty-isolator_20a">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','isolator_20a',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Electrics</div>
-      <div class="qty-item-price">£50</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','electrics',-1)">−</button>
-      <span class="qty-val" id="qty-electrics">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','electrics',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Fan isolator</div>
-      <div class="qty-item-price">£150</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','fan_isolator',-1)">−</button>
-      <span class="qty-val" id="qty-fan_isolator">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','fan_isolator',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Consumer box</div>
-      <div class="qty-item-price">£1030</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','consumer_box',-1)">−</button>
-      <span class="qty-val" id="qty-consumer_box">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','consumer_box',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">PIR Sensor</div>
-      <div class="qty-item-price">£190</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','pir_sensor',-1)">−</button>
-      <span class="qty-val" id="qty-pir_sensor">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','pir_sensor',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Internal Consumer Unit</div>
-      <div class="qty-item-price">£490</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','internal_consumer_unit',-1)">−</button>
-      <span class="qty-val" id="qty-internal_consumer_unit">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','internal_consumer_unit',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Extractor Fan</div>
-      <div class="qty-item-price">£100</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','extractor_fan',-1)">−</button>
-      <span class="qty-val" id="qty-extractor_fan">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','extractor_fan',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Isolator 45A</div>
-      <div class="qty-item-price">£160</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','isolator_45a',-1)">−</button>
-      <span class="qty-val" id="qty-isolator_45a">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','isolator_45a',1)">+</button>
-    </div>
-  </div>
-  <div class="qty-item">
-    <div class="qty-item-img"></div>
-    <div class="qty-item-info">
-      <div class="qty-item-label">Data point</div>
-      <div class="qty-item-price">£100</div>
-    </div>
-    <div class="qty-controls">
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','data_point',-1)">−</button>
-      <span class="qty-val" id="qty-data_point">0</span>
-      <button class="qty-btn" onclick="updateItemQty('electricalItems','data_point',1)">+</button>
-    </div>
-  </div>
-</div>
-
-      </div>
-
-    </div>
+      <div class="elec-extra-group">Other</div>
+      <div class="elec-row"><span>PIR Sensor</span><span class="elec-price">£190</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','pir_sensor',-1)">−</button><span class="qty-val" id="qty-pir_sensor">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','pir_sensor',1)">+</button></div></div>
+      <div class="elec-row"><span>Fan Isolator</span><span class="elec-price">£150</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','fan_isolator',-1)">−</button><span class="qty-val" id="qty-fan_isolator">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','fan_isolator',1)">+</button></div></div>
+      <div class="elec-row"><span>Isolator 20A</span><span class="elec-price">£110</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','isolator_20a',-1)">−</button><span class="qty-val" id="qty-isolator_20a">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','isolator_20a',1)">+</button></div></div>
+      <div class="elec-row"><span>Isolator 45A</span><span class="elec-price">£160</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','isolator_45a',-1)">−</button><span class="qty-val" id="qty-isolator_45a">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','isolator_45a',1)">+</button></div></div>
+      <div class="elec-row"><span>Internal Consumer Unit</span><span class="elec-price">£490</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','internal_consumer_unit',-1)">−</button><span class="qty-val" id="qty-internal_consumer_unit">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','internal_consumer_unit',1)">+</button></div></div>
+      <div class="elec-row"><span>Data Point</span><span class="elec-price">£100</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','data_point',-1)">−</button><span class="qty-val" id="qty-data_point">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','data_point',1)">+</button></div></div>
+      <div class="elec-row"><span>Electrics (general)</span><span class="elec-price">£50</span><div class="qty-controls"><button class="qty-btn" onclick="updateItemQty('electricalItems','electrics',-1)">−</button><span class="qty-val" id="qty-electrics">0</span><button class="qty-btn" onclick="updateItemQty('electricalItems','electrics',1)">+</button></div></div>
+    </details>
 
   </div>
 
@@ -2639,30 +2154,7 @@
 </script>
 
 <!-- ── Context Menu ─────────────────────────────────────────── -->
-<div id="ctxMenu" style="
-  display:none; position:fixed; z-index:9999;
-  background:#1e1e1e; border:1px solid #444; border-radius:8px;
-  box-shadow:0 4px 20px rgba(0,0,0,0.5);
-  min-width:170px; overflow:hidden;
-  font-family:'DM Sans',sans-serif; font-size:13px; color:#eee;">
-</div>
-<style>
-  .ctx-item {
-    padding:9px 16px; cursor:pointer; display:flex; align-items:center; gap:9px;
-    transition:background 0.1s;
-  }
-  .ctx-item:hover { background:#2e2e2e; }
-  .ctx-item.danger { color:#ff6b6b; }
-  .ctx-item .ctx-icon { font-size:15px; width:18px; text-align:center; }
-  .ctx-item.disabled { color:#666; cursor:default; font-style:italic; }
-  .ctx-item.disabled:hover { background:transparent; }
-  .ctx-sep { height:1px; background:#333; margin:3px 0; }
-  @media (max-width: 768px) {
-    .ctx-item { padding: 13px 18px; font-size: 15px; gap: 12px; }
-    .ctx-item .ctx-icon { font-size: 18px; width: 22px; }
-    #ctxMenu { min-width: 200px; }
-  }
-</style>
+<div id="ctxMenu"></div>
 <script>
 (function(){
   const menu = document.getElementById('ctxMenu');

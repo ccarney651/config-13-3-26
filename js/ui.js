@@ -17,6 +17,22 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ─── UNIT CONVERSION HELPERS ────────────────────────────────────────────────────
+// These are global so scene.js and quote.js can call them without duplication.
+
+function fmtDim(metres) {
+  if (state.units !== 'imperial') return metres.toFixed(2) + ' m';
+  const totalIn = metres * 39.3701;
+  const feet    = Math.floor(totalIn / 12);
+  const inches  = Math.round(totalIn % 12);
+  return inches === 12 ? `${feet + 1}' 0"` : `${feet}' ${inches}"`;
+}
+
+function fmtArea(m2) {
+  if (state.units !== 'imperial') return m2.toFixed(1) + ' m²';
+  return (m2 * 10.764).toFixed(0) + ' ft²';
+}
+
 // ─── PRICE DISPLAY ──────────────────────────────────────────────────────────────
 
 function updatePriceDisplay() {
@@ -40,7 +56,7 @@ function addPartition(axis) {
   const end   = Math.min( innerLimit,  halfLen);
   state.partitions.push({ id, axis, pos, start, end, doors: [] });
   stateHistory.push();
-  buildRoom();
+  if (typeof buildPartitions === 'function') { buildPartitions(); markDirty(); } else buildRoom();
   renderPartitionsList();
 }
 
@@ -99,6 +115,7 @@ function rotateFurniture(id) {
 }
 
 function deleteFurniture(id) {
+  if (typeof selectFurniture === 'function' && typeof _selectedFurnitureId !== 'undefined' && _selectedFurnitureId === id) selectFurniture(null);
   state.furniture = state.furniture.filter(x => x.id !== id);
   stateHistory.push();
   if (typeof buildFurniture === 'function') buildFurniture();
@@ -106,13 +123,56 @@ function deleteFurniture(id) {
   renderFurnitureList();
 }
 
+function renderElectricsList() {
+  const el = document.getElementById('electricsList');
+  if (!el) return;
+  const electrics = state.electrics || [];
+  if (!electrics.length) { el.innerHTML = ''; return; }
+
+  const catalog    = typeof ELECTRICS_CATALOG    !== 'undefined' ? ELECTRICS_CATALOG    : {};
+  const pricingMap = typeof ELECTRIC_PRICING_KEY !== 'undefined' ? ELECTRIC_PRICING_KEY : {};
+  const selId      = typeof _selectedElectricId  !== 'undefined' ? _selectedElectricId  : null;
+
+  el.innerHTML = electrics.map(e => {
+    const def    = catalog[e.type];
+    const label  = def ? def.label : e.type;
+    const pKey   = pricingMap[e.type];
+    const item   = pKey && typeof getItem === 'function' ? getItem(pKey) : null;
+    const price  = item ? `<span class="elec-placed-price">£${item.rate.toLocaleString()}</span>` : '';
+    const sel    = e.id === selId ? ' selected' : '';
+    return `<div class="elec-placed-row${sel}" onclick="selectElectric(${e.id})">
+      <span class="elec-placed-label">${label}</span>
+      ${price}
+      <button class="elec-placed-del" onclick="event.stopPropagation();deleteElectric(${e.id})" title="Remove">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function deleteElectric(id) {
+  const el = (state.electrics || []).find(x => x.id === id);
+  if (!el) return;
+  // Sync pricing qty
+  const pricingMap = typeof ELECTRIC_PRICING_KEY !== 'undefined' ? ELECTRIC_PRICING_KEY : {};
+  const pKey = pricingMap[el.type];
+  if (pKey && state.electricalItems && state.electricalItems[pKey] > 0) {
+    state.electricalItems[pKey]--;
+    const valEl = document.getElementById('qty-' + pKey);
+    if (valEl) { valEl.textContent = state.electricalItems[pKey]; }
+  }
+  state.electrics = state.electrics.filter(x => x.id !== id);
+  stateHistory.push();
+  if (typeof buildElectrics === 'function') buildElectrics();
+  if (typeof markDirty === 'function') markDirty();
+  updatePriceDisplay();
+  renderElectricsList();
+}
+
 function removeLastPartition(axis) {
-  // Remove the most recently added partition of the given axis
   const idx = state.partitions.map(p => p.axis).lastIndexOf(axis);
   if (idx !== -1) {
     state.partitions.splice(idx, 1);
     stateHistory.push();
-    buildRoom();
+    if (typeof buildPartitions === 'function') { buildPartitions(); markDirty(); } else buildRoom();
     renderPartitionsList();
   }
 }
@@ -135,14 +195,14 @@ function placePartitionAtPos(axis, cx, cz) {
   if (end - start < 0.5) end = start + 0.5;
   state.partitions.push({ id, axis, pos, start, end, doors: [] });
   stateHistory.push();
-  buildRoom();
+  if (typeof buildPartitions === 'function') { buildPartitions(); markDirty(); } else buildRoom();
   renderPartitionsList();
 }
 
 function removePartition(id) {
   state.partitions = state.partitions.filter(p => p.id !== id);
   stateHistory.push();
-  buildRoom();
+  if (typeof buildPartitions === 'function') { buildPartitions(); markDirty(); } else buildRoom();
   renderPartitionsList();
 }
 
@@ -187,17 +247,13 @@ function partitionDrop(e) {
 
 function updateSpecsBar() {
   const el = id => document.getElementById(id);
-  const u  = state.units === 'imperial';
-  const s  = v => u ? (v * 3.281).toFixed(1) + 'ft'  : v.toFixed(2) + 'm';
-  const s2 = v => u ? (v * 10.764).toFixed(0) + 'ft²' : v.toFixed(1) + 'm²';
-
   // Dimensions
-  if (el('spec-width'))  el('spec-width').textContent  = s(state.width);
-  if (el('spec-depth'))  el('spec-depth').textContent  = s(state.depth);
-  if (el('spec-height')) el('spec-height').textContent = s(state.height);
-  if (el('spec-area'))   el('spec-area').textContent   = s2(state.width * state.depth);
+  if (el('spec-width'))  el('spec-width').textContent  = fmtDim(state.width);
+  if (el('spec-depth'))  el('spec-depth').textContent  = fmtDim(state.depth);
+  if (el('spec-height')) el('spec-height').textContent = fmtDim(state.height);
+  if (el('spec-area'))   el('spec-area').textContent   = fmtArea(state.width * state.depth);
   const wallArea = (state.width * 2 + state.depth * 2) * state.height;
-  if (el('spec-wall-area')) el('spec-wall-area').textContent = s2(wallArea);
+  if (el('spec-wall-area')) el('spec-wall-area').textContent = fmtArea(wallArea);
 
   // Materials — resolve human-readable labels from the catalogue
   const label = key => {
@@ -275,21 +331,26 @@ function setDimension(key, val) {
 
 function syncDimSliders() {
   const w = state.width, d = state.depth, h = state.height;
-  const u = state.units === 'imperial';
-  const s = v => u ? (v * 3.281).toFixed(1) + 'ft' : v.toFixed(2) + 'm';
   document.getElementById('widthSlider').value  = w;
   document.getElementById('depthSlider').value  = d;
   document.getElementById('heightSlider').value = h;
-  document.getElementById('widthVal').textContent  = s(w);
-  document.getElementById('depthVal').textContent  = s(d);
-  document.getElementById('heightVal').textContent = s(h);
+  document.getElementById('widthVal').textContent  = fmtDim(w);
+  document.getElementById('depthVal').textContent  = fmtDim(d);
+  document.getElementById('heightVal').textContent = fmtDim(h);
   updateSpecsBar();
 }
 
 function toggleUnits() {
   state.units = state.units === 'metric' ? 'imperial' : 'metric';
-  document.getElementById('unitsLabel').textContent = state.units === 'metric' ? 'm' : 'ft';
+  const btn = document.getElementById('tbUnits');
+  if (btn) {
+    btn.textContent = state.units === 'metric' ? 'm' : 'ft';
+    btn.title = state.units === 'metric' ? 'Switch to feet & inches' : 'Switch to metres';
+  }
   syncDimSliders();
+  syncVerandaDepthSlider();
+  syncRoofSliders();
+  syncDeckingAreaDisplay();
   if (typeof markDirty === 'function') markDirty();
 }
 
@@ -424,7 +485,7 @@ function selectWindowStyle(key, el) {
   if (typeof setActivePalette === 'function') setActivePalette('window');
 }
 
-function selectGlazingType(_key, el) {
+function selectGlazingType(el) {
   el.closest('.swatch-grid').querySelectorAll('.cat-swatch').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   stateHistory.push();
@@ -442,9 +503,14 @@ function selectDeckingMaterial(key, el) {
   updatePriceDisplay();
 }
 
+function syncDeckingAreaDisplay() {
+  const el = document.getElementById('deckingAreaVal');
+  if (el) el.textContent = fmtArea(state.deckingArea || 0);
+}
+
 function updateDeckingArea(val) {
   state.deckingArea = parseFloat(val);
-  document.getElementById('deckingAreaVal').textContent = val + 'm²';
+  syncDeckingAreaDisplay();
   stateHistory.push();
   buildRoom();
   updatePriceDisplay();
@@ -673,7 +739,7 @@ function syncRoofSliderVisibility() {
 function setVerandaDepth(val) {
   state.veranda = state.veranda || {};
   state.veranda.depth = parseFloat(val);
-  document.getElementById('verandaDepthVal').textContent = parseFloat(val).toFixed(2) + 'm';
+  document.getElementById('verandaDepthVal').textContent = fmtDim(parseFloat(val));
   stateHistory.push();
   buildRoom();
 }
@@ -686,7 +752,7 @@ function syncVerandaDepthSlider() {
   const val    = document.getElementById('verandaDepthVal');
   const depth  = state.veranda?.depth ?? 2.0;
   if (slider) slider.value = depth;
-  if (val)    val.textContent = depth.toFixed(2) + 'm';
+  if (val)    val.textContent = fmtDim(depth);
 }
 
 // ─── ROOF SLIDERS ─────────────────────────────────────────────────────────────
@@ -695,7 +761,7 @@ function syncRoofSliders() {
   const pitchSlider = document.getElementById('apexPitchSlider');
   const pitchVal    = document.getElementById('apexPitchVal');
   if (pitchSlider) pitchSlider.value = state.apexPitch ?? 1.0;
-  if (pitchVal)    pitchVal.textContent = (state.apexPitch ?? 1.0).toFixed(2) + 'm';
+  if (pitchVal)    pitchVal.textContent = fmtDim(state.apexPitch ?? 1.0);
 
   const tiltSlider = document.getElementById('roofTiltSlider');
   const tiltVal    = document.getElementById('roofTiltVal');
@@ -809,6 +875,7 @@ function _applyStateSnapshot(snap) {
   syncDimSliders();
   renderOpeningsList();
   renderPartitionsList();
+  renderElectricsList();
 }
 
 // ── Presets ──────────────────────────────────────────────────────────────────────
@@ -964,6 +1031,110 @@ function updatePaletteUI() {
   renderOpeningsList();
   renderPartitionsList();
 }
+
+// ─── SWATCH IMAGE INJECTION ──────────────────────────────────────────────────────
+// Maps catalogue keys → asset filenames. On load, injects <img> into every
+// .cat-swatch-img whose data-key parent has a known thumbnail. Falls back to
+// the shimmer placeholder for anything not listed.
+
+const SWATCH_IMAGES = {
+  // Roof finishes
+  epdm_black_roofing:              'roof_epdm.jpg',
+  green_roof:                      'roof_grass.jpg',
+  cedar_roofing:                   'roof_cedar.jpg',
+  corrugated_roofing:              'roof_cedar.jpg',
+  pebbles_roof:                    'roof_pebbles.jpg',
+  shingles_square_red_roofing:     'roof_shingle_red.jpg',
+  shingles_square_black_roofing:   'roof_shingle_grey.jpg',
+  sip_roof:                        'roof_epdm.jpg',
+  // Cladding
+  vertical_cedar_cladding:                                 'tex_cedar.jpg',
+  horizontal_cedar_cladding:                               'tex_horizontal_cedar.jpg',
+  charred_thermowood_cladding:                             'tex_charred_thermowood.jpg',
+  charred_black_thermowood_cladding:                       'tex_charred_black.jpg',
+  strongcore_cladding:                                     'tex_strongcore.jpg',
+  neotimber_classic_plank_charcoal_vertical_cladding:      'tex_neotimber_charcoal.jpg',
+  neotimber_classic_plank_grey_vertical_cladding:          'tex_neotimber_grey.jpg',
+  anthracite_vertical_metal_cladding:                      'tex_metal_anthracite.jpg',
+  black_vertical_metal_cladding:                           'tex_metal_black.jpg',
+  corten_cladding:                                         'tex_corten.jpg',
+  red_brick_wall_01_cladding:                              'tex_red_brick.jpg',
+  render_cladding:                                         'tex_render.jpg',
+  composite_cladding:                                      'tex_composite.jpg',
+  vertical_larch_cladding:                                 'tex_timber.jpg',
+  oak_planks_cladding:                                     'tex_timber.jpg',
+  vertical_shiplap_cladding:                               'tex_timber.jpg',
+  shiplap_black_cladding:                                  'tex_charred_black.jpg',
+  vertical_tongue_and_groove_cladding:                     'tex_timber.jpg',
+  loglap_horizontal_cladding:                              'tex_timber.jpg',
+  // Interior walls
+  plywood_finished_walls:              'int_wall_plywood.jpg',
+  light_yellow_finished_walls:         'int_wall_yellow.jpg',
+  melamine_boards_finished_walls:      'int_wall_melamine.jpg',
+  studs_membrane_finished_walls:       'int_wall_membrane.jpg',
+  oak_panels_finished_walls:           'int_wall_oak.jpg',
+  light_blue_finished_walls:           'int_wall_blue.jpg',
+  light_green_finished_walls:          'int_wall_green.jpg',
+  tongue_and_groove_finished_walls:    'int_wall_tongue_groove.jpg',
+  charcoal_grey_finished_walls:        'int_wall_charcoal.jpg',
+  studs_osb_finished_walls:            'int_wall_plywood.jpg',
+  studs_insulation_finished_walls:     'int_wall_membrane.jpg',
+  white_finished_walls:                'int_wall_white.jpg',
+  alder_wood_finished_walls:           'int_wall_alder.jpg',
+  // Interior floors (mapped to closest available texture)
+  oak_flooring:                        'int_floor_oak.jpg',
+  farm_oak_flooring:                   'int_floor_farm_oak.jpg',
+  farm_house_light_oak_flooring:       'int_floor_farm_oak.jpg',
+  farm_house_dark_oak_flooring:        'int_floor_farm_oak.jpg',
+  oxford_oak_flooring:                 'int_floor_oak.jpg',
+  aster_staggered_oak_flooring:        'int_floor_oak.jpg',
+  phantom_oak_flooring:                'int_floor_oak.jpg',
+  loft_dark_grey_oak_flooring:         'int_floor_walnut.jpg',
+  loft_midnight_oak_flooring:          'int_floor_walnut.jpg',
+  victorian_oak_flooring:              'int_floor_oak.jpg',
+  rhino_oak_flooring:                  'int_floor_oak.jpg',
+  wiltshire_english_oak_flooring:      'int_floor_oak.jpg',
+  natural_oak_flooring:                'int_floor_oak.jpg',
+  honey_oak_flooring:                  'int_floor_farm_oak.jpg',
+  aspen_oak_flooring:                  'int_floor_oak.jpg',
+  sicilia_oak_flooring:                'int_floor_oak.jpg',
+  westchester_oak_flooring:            'int_floor_oak.jpg',
+  kentucky_oak_beige_flooring:         'int_floor_farm_oak.jpg',
+  beech_flooring:                      'int_floor_farm_oak.jpg',
+  sawn_flooring:                       'int_floor_farm_oak.jpg',
+  tongue_and_groove_flooring:          'int_floor_farm_oak.jpg',
+  decking_flooring:                    'int_floor_farm_oak.jpg',
+  walnut_flooring:                     'int_floor_walnut.jpg',
+  oak_parquet_flooring:                'int_floor_tiles.jpg',
+  dark_oak_parquet_flooring:           'int_floor_walnut.jpg',
+  wiltshire_weathered_grey_parquet_flooring: 'int_floor_walnut.jpg',
+  white_marble_flooring:               'int_floor_marble.jpg',
+  grey_stone_flooring:                 'int_floor_marble.jpg',
+  tiles_flooring:                      'int_floor_tiles.jpg',
+  hadley_tiles_flooring:               'int_floor_tiles.jpg',
+  white_tiles_flooring:                'int_floor_tiles.jpg',
+  beige_stone_flooring:                'int_floor_tiles.jpg',
+  black_gym_flooring:                  'int_floor_gym_black.jpg',
+  black_rubber_flooring:               'int_floor_rubber.jpg',
+  light_grey_rubber_flooring:          'int_floor_rubber.jpg',
+  dark_grey_rubber_flooring:           'int_floor_rubber.jpg',
+  polished_concrete:                   'int_floor_polished_concrete.jpg',
+};
+
+(function injectSwatchImages() {
+  document.querySelectorAll('.cat-swatch[data-key]').forEach(swatch => {
+    const imgFile = SWATCH_IMAGES[swatch.dataset.key];
+    if (!imgFile) return;
+    const imgDiv = swatch.querySelector('.cat-swatch-img');
+    if (!imgDiv) return;
+    const img = document.createElement('img');
+    img.src = `assets/${imgFile}`;
+    img.loading = 'lazy';
+    img.alt = '';
+    img.onerror = () => img.remove();
+    imgDiv.appendChild(img);
+  });
+})();
 
 // ─── APPLY ADMIN DISABLED ITEMS ─────────────────────────────────────────────────
 // Hides any customer-facing option whose data-key matches a disabled item

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Browser-based garden room configurator with pricing engine",
   "scripts": {
-    "test": "node test/pricing.test.js && node test/snap.test.js && node test/state.test.js"
+    "test": "node test/pricing.test.js && node test/snap.test.js && node test/state.test.js && node test/pricing.coverage.test.js"
   },
   "author": "",
   "license": "MIT"
