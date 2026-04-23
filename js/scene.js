@@ -311,6 +311,7 @@ function setGroundType(type) {
 
 const grid = new THREE.GridHelper(300, 300, 0x5a9a50, 0x5a9a50);
 grid.material.opacity = 0.08; grid.material.transparent = true;
+grid.position.y = 0.002;  // slight lift to prevent z-fighting with ground plane
 scene.add(grid);
 
 const buildingGroup = new THREE.Group();  // walls + floor
@@ -3656,7 +3657,8 @@ let partitionDragState = null;  // { id, axis, groundAnchor }
 
 // ── Camera state: current values (what's rendered) and target values (where we're going)
 let orbitTheta=0.343, orbitPhi=1.350, orbitRadius=22.11;
-let targetTheta=0.343, targetPhi=1.350, targetRadius=22.11;
+const _isMobile = window.innerWidth < 769;
+let targetTheta=0.343, targetPhi=1.350, targetRadius=_isMobile ? 30 : 22.11;
 const orbitTarget  = new THREE.Vector3(0, 1.5, 0);
 const targetOrigin = new THREE.Vector3(0, 1.5, 0);
 
@@ -4561,7 +4563,7 @@ canvas.addEventListener('contextmenu', e => {
 
   // Empty canvas — show camera/view shortcuts
   ctx.show(e.clientX, e.clientY, [
-    { icon: '🏠', label: 'Reset view',    action() { targetTheta=0.343; targetPhi=1.350; targetRadius=22.11; targetOrigin.set(0,1.5,0); markDirty(); } },
+    { icon: '🏠', label: 'Reset view',    action() { targetTheta=0.343; targetPhi=1.350; targetRadius=(_isMobile?30:22.11); targetOrigin.set(0,1.5,0); markDirty(); } },
     { icon: '🔲', label: 'Floorplan view', action() { toggleFloorplanView(); } },
     { icon: '👁', label: 'Interior view',  action() { toggleInteriorView(); } },
   ]);
@@ -4702,7 +4704,7 @@ canvas.addEventListener('touchstart', e => {
   }, 500);
 
   // Default: orbit
-  touchState = { type: 'orbit', lastX: t0.clientX, lastY: t0.clientY };
+  touchState = { type: 'orbit', lastX: t0.clientX, lastY: t0.clientY, startX: t0.clientX, startY: t0.clientY, moved: false };
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
@@ -4882,10 +4884,11 @@ canvas.addEventListener('touchmove', e => {
   if (touchState.type === 'orbit') {
     const dx = t0.clientX - touchState.lastX;
     const dy = t0.clientY - touchState.lastY;
-    targetTheta -= dx * 0.008;
-    targetPhi    = Math.max(0.05, Math.min(1.35, targetPhi - dy * 0.008));
+    targetTheta -= dx * 0.005;
+    targetPhi    = Math.max(0.05, Math.min(1.35, targetPhi - dy * 0.005));
     touchState.lastX = t0.clientX;
     touchState.lastY = t0.clientY;
+    touchState.moved = true;
     markDirty();
   }
 }, { passive: false });
@@ -4898,6 +4901,46 @@ canvas.addEventListener('touchend', e => {
     }
     if (touchState?.type === 'partition') partitionDragState = null;
     if (touchState?.type === 'presetRoom') presetRoomDragState = null;
+
+    // Tap detection: short touch with no meaningful movement → run click logic
+    if (touchState?.type === 'orbit' && !touchState.moved) {
+      const fakeE = { clientX: touchState.startX, clientY: touchState.startY, button: 0 };
+      raycaster.setFromCamera(getMouseNDC(fakeE), camera);
+
+      // Check electric
+      const elecGroups = electricMeshes.map(em => em.group);
+      const elecHits = raycaster.intersectObjects(elecGroups, true);
+      if (elecHits.length) {
+        let hitObj = elecHits[0].object;
+        while (hitObj && !hitObj.userData.electricId) hitObj = hitObj.parent;
+        if (hitObj?.userData.electricId != null) {
+          const eid = hitObj.userData.electricId;
+          deselectAll(); selectElectric(eid);
+          touchState = null; return;
+        }
+      }
+
+      // Check furniture
+      const fHits = raycaster.intersectObjects(furnitureMeshes, false);
+      if (fHits.length) {
+        const fid = fHits[0].object.userData.furnitureId;
+        if (fid != null) {
+          deselectAll(); selectFurniture(fid);
+          touchState = null; return;
+        }
+      }
+
+      // Check opening handle
+      const handleHit = raycastHandles(fakeE);
+      if (handleHit) {
+        const op = state.openings.find(o => o.id === handleHit.openingId);
+        if (op) { deselectAll(); selectHandle(op.id); touchState = null; return; }
+      }
+
+      // Tap on empty space — deselect
+      deselectAll();
+    }
+
     touchState = null;
   } else if (e.touches.length === 1 && touchState?.type === 'pinch') {
     // Dropped to one finger — switch to orbit

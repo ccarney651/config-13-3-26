@@ -171,7 +171,7 @@ header h1 {
 
 .tab-panel {
   position: fixed;
-  bottom: 60px; left: 0; right: 0;
+  bottom: 64px; left: 0; right: 0;
   max-height: 46vh;
   background: var(--panel);
   border-top: 1px solid var(--border);
@@ -797,17 +797,17 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
 
   /* ── Tab bar ── */
   .tab-bar {
-    height: 56px;
+    height: 64px;
     /* ensure overscroll doesn't bounce into viewport */
     overscroll-behavior-x: contain;
   }
   .tab-btn {
-    min-width: 54px;
-    padding: 0 6px;
-    font-size: 8.5px;
-    gap: 1px;
+    min-width: 62px;
+    padding: 0 8px;
+    font-size: 9px;
+    gap: 3px;
   }
-  .tab-icon { font-size: 16px; }
+  .tab-icon { font-size: 18px; }
 
   /* ── Options panel: fixed px cap so 3D viewport is NEVER fully blocked ──
      Layout math (portrait phone):
@@ -983,9 +983,9 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   .tab-panel { max-height: 160px; }
 
   /* Smaller tab bar */
-  .tab-bar { height: 48px; }
-  .tab-btn { font-size: 8px; }
-  .tab-icon { font-size: 14px; }
+  .tab-bar { height: 52px; }
+  .tab-btn { font-size: 8px; min-width: 54px; }
+  .tab-icon { font-size: 15px; }
 
   /* Specs bar: hidden in landscape phone — not enough room */
   .specs-bar { display: none; }

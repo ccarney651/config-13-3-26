@@ -76,7 +76,7 @@
       <button class="tb-btn" id="tbFloorplan" onclick="toggleFloorplanView()" title="Floorplan view">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 12h8v9M14 3v9h7"/></svg>
       </button>
-      <button class="tb-btn" id="tbReset" onclick="targetTheta=0.343;targetPhi=1.350;targetRadius=22.11;targetOrigin.set(0,1.5,0);markDirty()" title="Reset view">
+      <button class="tb-btn" id="tbReset" onclick="targetTheta=0.343;targetPhi=1.350;targetRadius=(_isMobile?30:22.11);targetOrigin.set(0,1.5,0);markDirty()" title="Reset view">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
       </button>
       <div class="tb-sep"></div>
