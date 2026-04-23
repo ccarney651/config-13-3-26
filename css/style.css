@@ -728,77 +728,50 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   MOBILE  ≤ 768px  — bottom-sheet panel, compact header, touch-friendly targets
+   MOBILE  ≤ 768px  — split-screen: viewport on top, panel always on bottom
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
-  /* ── Base ── */
-  body { height: 100dvh; overflow: hidden; }
+  /* ── Base: full-height flex column ── */
+  body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
 
   /* ── Header ── */
-  header { padding: 0 12px; height: 52px; gap: 8px; }
+  header { flex-shrink: 0; padding: 0 12px; height: 52px; gap: 8px; }
   header h1 { font-size: 15px; }
   .subtitle { display: none; }
-
   .header-right { gap: 8px; }
   .share-btn { padding: 5px 10px; font-size: 12px; }
   .price-display { padding: 5px 12px; font-size: 14px; }
   .quote-btn { padding: 6px 12px; font-size: 12px; }
 
-  /* ── Viewport fills remaining space above tab bar ── */
-  .main { flex: 1; overflow: hidden; }
+  /* ── 3D viewport: fixed height, never resizes ── */
+  .main { flex: 0 0 42dvh; overflow: hidden; }
   .viewport { height: 100%; }
 
-  /* ── Viewport toolbar: scrollable horizontal strip, smaller buttons ── */
-  .viewport-toolbar {
-    top: 8px;
-    left: 8px;
-    right: 8px;
-    transform: none;           /* override desktop translateX(-50%) */
-    padding: 3px 6px;
-    gap: 1px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    border-radius: 8px;
-    max-width: calc(100vw - 16px);
-    scrollbar-width: none;
+  /* ── Options panel: always visible below viewport, scrolls inside ── */
+  .tab-panel {
+    position: relative !important;   /* pull out of fixed positioning */
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    flex: 1;
+    min-height: 0;
+    max-height: none !important;
+    transform: none !important;      /* never slide — always in flow */
+    border-radius: 0;
+    border-top: 1px solid var(--border);
+    box-shadow: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
-  .viewport-toolbar::-webkit-scrollbar { display: none; }
-  .tb-btn { width: 30px; height: 30px; flex-shrink: 0; }
-  .tb-sep { height: 16px; margin: 0 2px; flex-shrink: 0; }
+  /* Pull handle not needed — panel is always visible */
+  .tab-panel::before { display: none; }
 
-  /* ── Placement banner: below scrollable toolbar on mobile ── */
-  #placementBanner { top: 52px !important; }
-
-  /* ── Specs bar: stay top-right so panel never covers it when open ── */
-  .specs-bar {
-    top: 54px;   /* just below the scrollable toolbar */
-    bottom: auto;
-    right: 8px;
-    padding: 8px 10px;
-    min-width: 170px;
-    font-size: 11px;
-  }
-  .specs-bar h3 { font-size: 8.5px; margin-bottom: 5px; }
-  .spec-row { font-size: 10.5px; margin-bottom: 3px; gap: 8px; }
-
-  /* ── View hint: re-centre below toolbar (no sidebar on mobile) ── */
-  .view-hint {
-    display: flex;
-    top: 54px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-  .view-hint-desktop { display: none; }
-  .view-hint-touch   { display: inline; }
-
-  /* ── Tab bar ── */
+  /* ── Tab bar: pinned to bottom ── */
   .tab-bar {
+    flex-shrink: 0;
     height: 64px;
-    /* ensure overscroll doesn't bounce into viewport */
     overscroll-behavior-x: contain;
   }
   .tab-btn {
@@ -809,19 +782,32 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   }
   .tab-icon { font-size: 18px; }
 
-  /* ── Options panel: fixed px cap so 3D viewport is NEVER fully blocked ──
-     Layout math (portrait phone):
-       header:   52px
-       viewport: min 160px  ← guaranteed always visible strip
-       panel:    max 260px  (content scrolls inside)
-       tab bar:  56px
-     Total: 528px — fits any phone ≥ 528px tall.
-     Fixed px ceiling (not vh) means the model never disappears
-     regardless of phone height. ── */
-  .tab-panel {
-    max-height: 260px;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  /* ── Viewport toolbar: scrollable horizontal strip, smaller buttons ── */
+  .viewport-toolbar {
+    top: 8px; left: 8px; right: 8px;
+    transform: none;
+    padding: 3px 6px; gap: 1px;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap; justify-content: flex-start;
+    border-radius: 8px;
+    max-width: calc(100vw - 16px);
+    scrollbar-width: none;
   }
+  .viewport-toolbar::-webkit-scrollbar { display: none; }
+  .tb-btn { width: 30px; height: 30px; flex-shrink: 0; }
+  .tb-sep { height: 16px; margin: 0 2px; flex-shrink: 0; }
+
+  /* ── Placement banner ── */
+  #placementBanner { top: 52px !important; }
+
+  /* ── Specs bar: hidden — viewport is too short ── */
+  .specs-bar { display: none; }
+
+  /* ── View hint ── */
+  .view-hint { display: flex; top: 54px; left: 50%; transform: translateX(-50%); }
+  .view-hint-desktop { display: none; }
+  .view-hint-touch   { display: inline; }
 
   /* ── Swatch grid: 2 columns minimum on mobile so items aren't too narrow ── */
   .swatch-grid {
@@ -960,7 +946,7 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   .option-grid.cols3 { grid-template-columns: 1fr 1fr; }
 
   /* Tab panel: slightly more room since specs bar is gone, but viewport still visible */
-  .tab-panel { max-height: 280px; }
+  /* panel is in-flow with flex:1 — max-height not needed */
 
   /* Larger touch targets for option buttons */
   .option-btn { padding: 14px 6px 12px; font-size: 11.5px; }
@@ -975,20 +961,15 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
-  /* Shrink header */
   header { height: 44px; }
   header h1 { font-size: 13px; }
 
-  /* Shallower panel in landscape — viewport height is only ~300-400px total */
-  .tab-panel { max-height: 160px; }
+  /* In landscape the viewport is shallow — give it less height so panel has room */
+  .main { flex: 0 0 52dvh; }
 
-  /* Smaller tab bar */
   .tab-bar { height: 52px; }
   .tab-btn { font-size: 8px; min-width: 54px; }
   .tab-icon { font-size: 15px; }
-
-  /* Specs bar: hidden in landscape phone — not enough room */
-  .specs-bar { display: none; }
 }
 
 /* ── Wall dimension labels (3D projected) ────────────────────────────────────── */

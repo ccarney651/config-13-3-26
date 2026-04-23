@@ -2131,10 +2131,12 @@
   // ── Tab bar controller ──────────────────────────────────────────────────
   let _activeTab = null;
 
+  const _mobileLayout = window.innerWidth < 769;
+
   function selectTab(name, el) {
     const panel = document.getElementById('tabPanel');
-    if (_activeTab === name) {
-      // Toggle off — close panel
+    if (_activeTab === name && !_mobileLayout) {
+      // Desktop only: toggle off to close panel
       panel.classList.remove('open');
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       _activeTab = null;
@@ -2146,7 +2148,6 @@
     document.getElementById('tab-' + name).classList.add('active');
     panel.classList.add('open');
     _activeTab = name;
-    // Scroll tab panel to top when switching
     panel.scrollTop = 0;
   }
 
@@ -2156,6 +2157,11 @@
   syncRoofSliders();
   syncVerandaDepthSlider();
   buildRoom();
+  // On mobile the panel is always visible — pre-select Style tab
+  if (_mobileLayout) {
+    const firstBtn = document.querySelector('.tab-btn');
+    if (firstBtn) selectTab('style', firstBtn);
+  }
   updatePriceDisplay();
   renderOpeningsList();
   renderDesignsList();
