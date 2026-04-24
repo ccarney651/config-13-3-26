@@ -1238,6 +1238,15 @@ const SWATCH_IMAGES = {
   });
 })();
 
+function showToast(message, durationMs = 2100) {
+  const toast = document.createElement('div');
+  toast.className = 'drop-toast';
+  toast.textContent = message;
+  toast.style.setProperty('--toast-duration', (durationMs / 1000) + 's');
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), durationMs);
+}
+
 function showDropFeedback(x, y, key) {
   // Ripple at drop point
   const ripple = document.createElement('div');
@@ -1247,12 +1256,7 @@ function showDropFeedback(x, y, key) {
   document.body.appendChild(ripple);
   setTimeout(() => ripple.remove(), 600);
 
-  // Toast label
   const item = getItem(key);
   const label = item ? item.label : key.replace(/_/g, ' ');
-  const toast = document.createElement('div');
-  toast.className = 'drop-toast';
-  toast.textContent = `✓ ${label} added`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 2100);
+  showToast(`✓ ${label} added`);
 }

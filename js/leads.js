@@ -186,4 +186,10 @@ function sendEnquiryEmail() {
   );
 
   window.location.href = `mailto:${ENQUIRY_EMAIL}?subject=${subject}&body=${encodeURIComponent(body)}`;
+
+  // Give the browser a moment to open the mail client, then show confirmation
+  setTimeout(() => {
+    closeQuoteModal();
+    showToast('Enquiry prepared — please send it from your mail client.', 4000);
+  }, 800);
 }

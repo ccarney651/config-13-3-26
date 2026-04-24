@@ -556,13 +556,6 @@ function _claddingKey(wallId) {
   return state.cladding;
 }
 
-// Full-wall material (used for gable ends and tilt wedges — no cutouts).
-// offsetY: world-space Y start position for texture continuity (e.g. on wedge above rect wall).
-function makeWallMat(w, h, wallId, offsetY = 0) {
-  const cfg = CLADDING_CFG[_claddingKey(wallId)] || _CLADDING_FALLBACK;
-  return makeTiledMat({ ...cfg, worldW: w, worldH: h, offsetY, tint: state.claddingTint });
-}
-
 // Returns cladding config for use by makePanelMat (per-wall aware).
 function makeWallTexInfo(wallId) {
   return CLADDING_CFG[_claddingKey(wallId)] || _CLADDING_FALLBACK;
@@ -1234,7 +1227,8 @@ function placeDoorGLB(wallId, worldCentre, doorW, style, hw, hd, gen) {
   const mk = resolveModelKey('door', style);
   const dm = DOOR_MODEL[mk] || DOOR_MODEL.single;
   loadModel(dm.file).then(model => {
-    if (!model || gen !== _buildGen) return;  // stale build — discard
+    if (gen !== _buildGen) return;
+    if (!model) { console.error('GLB load failed for door:', dm.file); return; }
     model.scale.set(doorW / dm.naturalW, 1, 1);
     model.traverse(c => { if (c.isMesh) { c.castShadow = c.receiveShadow = true; } });
     const { x, z } = worldCentre;
@@ -1257,7 +1251,8 @@ function placeWindowGLB(wallId, worldCentre, oh, _ow, style, hw, hd, gen) {
   const mk = resolveModelKey('window', style);
   const wm = WINDOW_MODEL[mk] || WINDOW_MODEL.tilt;
   loadModel(wm.file).then(model => {
-    if (!model || gen !== _buildGen) return;  // stale build — discard
+    if (gen !== _buildGen) return;
+    if (!model) { console.error('GLB load failed for window:', wm.file); return; }
     model.traverse(c => { if (c.isMesh) { c.castShadow = c.receiveShadow = true; } });
     const { x, y, z } = worldCentre;
     const yB = y - oh / 2;
@@ -2308,7 +2303,8 @@ function buildFurniture() {
         // GLB model for this preset piece
         const fid = f.id, gen = _buildGen;
         loadModel(f.model).then(scene => {
-          if (_buildGen !== gen || !scene) return;
+          if (_buildGen !== gen) return;
+          if (!scene) { console.error('GLB load failed for preset furniture:', f.model); return; }
           if (f.modelScale) scene.scale.setScalar(f.modelScale);
           scene.rotation.y = f.modelRotY ?? 0;
           const box = new THREE.Box3().setFromObject(scene);
@@ -2349,27 +2345,41 @@ function buildFurniture() {
     if (!def) return;
 
     if (def.model) {
-      const fid = f.id, gen = _buildGen;
+      const fid = f.id, fx = f.x, fz = f.z, frotY = f.rotY ?? 0, gen = _buildGen;
       loadModel(def.model).then(scene => {
-        if (_buildGen !== gen || !scene) return;
-        if (def.modelScale) scene.scale.setScalar(def.modelScale);
-        scene.rotation.y = def.modelRotY ?? 0;
-        const box = new THREE.Box3().setFromObject(scene);
-        const centre = new THREE.Vector3(); box.getCenter(centre);
-        scene.position.set(-centre.x, -box.min.y, -centre.z);
-        scene.traverse(child => { if (child.isMesh) { child.castShadow = true; child.userData.furnitureId = fid; furnitureMeshes.push(child); } });
-        const group = new THREE.Group();
-        group.position.set(f.x, floorY, f.z);
-        group.rotation.y = f.rotY ?? 0;
-        group.add(scene);
-        buildingGroup.add(group);
-        furnitureGroups[fid] = group;
+        if (gen !== _buildGen) return;
+        if (scene) {
+          if (def.modelScale) scene.scale.setScalar(def.modelScale);
+          scene.rotation.y = def.modelRotY ?? 0;
+          const box = new THREE.Box3().setFromObject(scene);
+          const centre = new THREE.Vector3(); box.getCenter(centre);
+          scene.position.set(-centre.x, -box.min.y, -centre.z);
+          scene.traverse(child => { if (child.isMesh) { child.castShadow = true; child.userData.furnitureId = fid; furnitureMeshes.push(child); } });
+          const group = new THREE.Group();
+          group.position.set(fx, floorY, fz);
+          group.rotation.y = frotY;
+          group.add(scene);
+          buildingGroup.add(group);
+          furnitureGroups[fid] = group;
+        } else {
+          // GLB failed — render coloured box so the item isn't invisible
+          console.error('GLB load failed for furniture:', def.model);
+          const mat = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.65, metalness: 0.05 });
+          const geo = new THREE.BoxGeometry(def.w, def.h, def.d);
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(fx, floorY + def.h / 2, fz);
+          mesh.rotation.y = frotY;
+          mesh.castShadow = true;
+          mesh.userData.furnitureId = fid;
+          buildingGroup.add(mesh);
+          furnitureMeshes.push(mesh);
+        }
         markDirty();
       });
       return;
     }
 
-    // Fallback: plain coloured box
+    // No model defined — plain coloured box
     const mat = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.65, metalness: 0.05 });
     const geo = new THREE.BoxGeometry(def.w, def.h, def.d);
     const mesh = new THREE.Mesh(geo, mat);

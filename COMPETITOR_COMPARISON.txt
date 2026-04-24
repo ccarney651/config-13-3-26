@@ -1,0 +1,287 @@
+GARDEN ROOM CONFIGURATOR — COMPETITOR COMPARISON
+=================================================
+Competitor: gardenroomplanner.com/app
+Updated: April 2026
+
+
+OVERVIEW
+--------
+The competitor is a mature, feature-dense configurator covering the full
+customer journey from exterior shell to kitchen drawer handles. Our tool
+has a strong pricing engine, solid 3D foundation, and a cleaner UI — but
+is missing entire product categories that customers would expect to
+configure before generating a quote.
+
+The gap is not in quality of what we have, but in breadth. Areas like the
+kitchen tab, decking shapes, sauna, and dynamic 3D electrical placement
+represent months of development work and will be the most visible shortfalls
+to a customer coming from the competitor.
+
+
+FEATURE-BY-FEATURE COMPARISON
+------------------------------
+
+STRUCTURE / STYLE
+                    Us              Competitor
+  W/D/H sliders     YES             YES
+  Drag-wall arrows  YES             YES
+  Flip orientation  NO              YES (mirrors the whole build)
+  Structure type    Freestanding    Freestanding + Partial Opening
+                    only            + Attached Extension
+  Ground/scene      Basic (grass    Multiple environment presets
+  environments      only)           (paved, gravel, sand, etc.)
+  Presets           4 design        Not a direct equivalent feature
+                    presets
+
+  Gap: Structure types (Partial Opening, Attached Extension) meaningfully
+  change the build geometry and would require significant scene.js work.
+  Environment scenes are lower priority — cosmetic only.
+
+
+ROOF
+                    Us              Competitor
+  Flat roof         YES             YES (3 sliders: angle, thickness,
+                                   trim height)
+  Pitched/Apex      YES             YES (angle + thickness sliders)
+  Flat sliders      1 (tilt angle)  3 (angle, thickness, trim height)
+  Apex sliders      1 (pitch)       2 (angle, thickness)
+  Rooflights        Qty counter     YES (3D placeable)
+  Veranda           YES (depth      Trellis canopy + veranda
+                    slider)
+  Trellis canopy    NO              YES
+  Roof coverings:
+    EPDM Black      YES             YES
+    Corrugated      YES             YES
+    Cedar           YES             YES (Cedar + Cedar Shingles Smooth)
+    Shingles Red    YES             YES
+    Shingles Black  YES             YES
+    Coated Tile     YES             YES
+    Copper          YES             YES
+    Green Roof      YES             (noted as possible exclusion)
+    Pebbles         YES             (noted as possible exclusion)
+
+  Gap: We are well-matched on roof coverings. The main gap is the
+  additional roof sliders (thickness, trim height) and the trellis canopy.
+  Rooflights as 3D placeable objects vs. qty counters is a UX gap.
+
+
+INTERNAL LAYOUT / PARTITION WALLS
+                    Us              Competitor
+  Partition walls   YES             YES
+  Wall types        Vertical,       Vertical, Horizontal, Mezzanine,
+                    Horizontal      Dwarf Wall, L-Shape Dwarf Wall
+  Interior doors    Basic (no       Interior Door, Interior Glass
+                    GLB yet)        Window, Interior Glass Door,
+                                    Interior Cavity Door
+  Preset rooms      Bathroom,       Bathroom, Cloakroom, Sauna
+                    Bedroom,
+                    Office
+  Cloakroom preset  NO              YES
+  Sauna preset      NO              YES (adjustable bench sizes)
+  Room resize       YES (drag       YES
+                    handles)
+  Furniture in      YES             YES
+  preset rooms
+
+  Gap: Cloakroom and Sauna are missing. Dwarf walls and mezzanines would
+  need new geometry work. Interior door variety (glass, cavity) is a gap
+  that will be filled once GLB models arrive from employer.
+
+
+BATHROOM / WET ROOM OBJECTS
+                    Us              Competitor
+  Toilet            YES             YES
+  Shower tray       YES             YES
+  Vanity            Placeholder     Full range (Mini, Small, Mid, Large,
+                    cabinet         Toilet Vanity, Combined, etc.)
+  Basin             NO              YES (Basin Pedestal, Basin)
+  Electric shower   Qty counter     YES
+  Extractor fan     Qty counter     YES (3D placeable)
+  Towel rail        Qty counter     YES (3D placeable)
+  Blow heater       Qty counter     YES (3D placeable)
+  Sauna-specific    NO              Sauna Heater, L-Shape Steam Bench,
+  objects                           Steam Bench, Backrest, Sauna Light
+
+  Gap: Bathroom is functional but thin. Once basin and proper vanity GLB
+  models are available this section will close significantly. Sauna objects
+  depend on whether a sauna preset is added.
+
+
+WINDOWS AND DOORS
+                    Us              Competitor
+  Door variety      Good range      Good range — broadly comparable
+  Window variety    Good range      Good range — broadly comparable
+  Blinds            NO              YES — every window/door, 4 colours
+                                    (white, silver, brown, grey)
+  Placement         YES (drag)      YES (drag)
+  Per-opening size  NO              YES (context menu slider for window
+                                    height; doors preset-sized)
+  Glazing type      YES (qty        YES — but similar scope
+                    counters)
+
+  Gap: Blinds are a visible gap — the competitor has them on every opening.
+  Window height resizing via context menu is a UX improvement worth adding.
+
+
+CLADDING
+  Both tools have a large cladding library. We have 18 options; the
+  competitor has a comparable range across multiple sub-tabs. Both apply
+  textures without changing 3D geometry. Per-wall overrides: we have them,
+  competitor appears to use the same global selection model.
+
+  Gap: Small. Mainly filling out textures and thumbnails.
+
+
+EXTERIOR FINISH / COLOUR
+                    Us              Competitor
+  Frame colour      1 global        Per-element: Windows, Posts,
+                    picker          Flashing, Guttering, Door Handles
+                                    (5 separate controls)
+
+  Gap: Our single frame colour picker is the weakest point in this section.
+  The competitor gives customers fine-grained control per element. This is
+  a meaningful differentiator when customers care about specific RAL colours
+  for window frames vs. guttering.
+
+
+INTERIOR FINISHES
+  Both tools have wall texture and floor material options. Feature parity
+  is reasonable here. No significant gap.
+
+
+KITCHEN
+                    Us              Competitor
+  Kitchen tab       NO              YES — full kitchen configurator
+                                    Sub-tabs: Top, Bottom, Tall, Island,
+                                    Appliances
+                                    Resizable cabinets (width/height)
+                                    Finish, worktop, handle customisation
+                                    Fridge and washing machine placeable
+
+  Gap: This is the single largest visible gap in the whole product.
+  A garden room sold as a studio, home office, or annexe almost always
+  has a kitchenette at minimum. Customers will notice its absence immediately.
+  Building this out is the highest-impact new feature.
+
+
+FURNITURE AND DECORATIONS
+  We have 35 furniture items across 8 categories with real GLB models.
+  The competitor has a comparable furniture section. No critical gap here,
+  though their objects may be resizable (see Resizable Objects below).
+
+
+DECKING AND BALUSTRADE
+                    Us              Competitor
+  Decking on/off    YES             YES
+  Shape presets     None (rect      6 presets: Square, L-Shape, U-Shape,
+                    implied)        Triangle, Semi-Triangle, Stairs
+  Quantity          1 deck          Unlimited, individually placed
+  Resize            Fixed area      Each object resizable
+                    slider
+  Material          1 choice        Multiple — material, face finish,
+                                    edge styling
+  Balustrades       Glass option    Picket, Glass, Frameless —
+                    only            per-object toggle, multiple finishes
+
+  Gap: Decking is far behind. A customer building an office or summerhouse
+  almost always wants to specify and visualise their decking. The shape
+  presets and unlimited placement model is a meaningful customer feature.
+
+
+LIGHTING AND ELECTRICS
+                    Us              Competitor
+  Sockets           Qty counters    3D placeable on walls
+  Switches          Qty counters    3D placeable on walls
+  Interior lights   Qty counters    3D placeable
+  Exterior lights   Qty counters    3D placeable
+  PIR, alarms, etc. Qty counters    3D placeable
+  Underfloor        Qty counter     3D placeable / toggle
+  heating
+  Electric fire     Qty counter     Included
+  Climate control   Qty counter     YES
+
+  Gap: All our electrics are quantity counters. The competitor places every
+  socket, switch, and light as a 3D object on the wall. This is a very large
+  development effort to retrofit. For now our qty-counter approach serves
+  the pricing engine; it is the biggest 3D interaction gap after kitchen.
+
+
+PRICING AND ADMIN
+                    Us              Competitor
+  Live pricing      YES             YES
+  Admin overrides   YES             Pricing described as dynamic;
+                                    admin interface unclear
+  Quote modal       YES             Not confirmed
+  PDF export        YES (print)     Not confirmed
+  Lead capture      YES (mailto)    Not confirmed
+  VAT display       YES (exc. VAT)  Not confirmed
+
+  Our pricing engine and admin panel are a genuine strength here.
+  The ability to override any rate from the admin panel without touching
+  code is a feature the competitor may not match.
+
+
+VIEWPORT AND UX
+                    Us              Competitor
+  Undo / Redo       YES             YES
+  Flip / mirror     NO              YES
+  Floorplan view    YES             YES
+  Interior view     YES             YES
+  Units toggle      YES (m / ft)    YES
+  Onboarding        YES (overlay)   Unknown
+  Share link        YES             Unknown
+  Save / Load       YES             Unknown
+  Right-click menus YES (partial)   Not confirmed
+
+
+SUMMARY: PRIORITY GAP LIST
+---------------------------
+Ranked by customer impact:
+
+1. KITCHEN TAB
+   Biggest visible gap. Affects all studio/office/annexe use cases.
+   Scope: new tab, resizable cabinet system, 5 sub-categories,
+   finish/worktop/handle customisation.
+
+2. 3D ELECTRICAL PLACEMENT
+   Every socket, switch, and light as a placeable wall object.
+   Significant work — scene.js wall-snapping system needed.
+   Current qty counters still feed pricing correctly.
+
+3. DECKING SHAPES AND MULTI-PIECE
+   6 shape presets, unlimited placed pieces, per-object resize and
+   balustrade options. Currently we have a single area slider.
+
+4. EXTERIOR COLOUR PER ELEMENT
+   Separate colour pickers for Windows, Posts, Flashing, Guttering,
+   Door Handles. Currently one global frame colour picker.
+
+5. SAUNA PRESET + OBJECTS
+   Preset room with adjustable bench, sauna-specific fixtures.
+   Depends on employer providing GLB models.
+
+6. CLOAKROOM PRESET
+   Simple — bathroom minus shower. GLB models needed.
+
+7. BLINDS ON OPENINGS
+   Per-opening blinds toggle in 4 colours. Primarily a 3D visual feature.
+
+8. STRUCTURE TYPES (Partial Opening, Attached Extension)
+   Major geometry work — alters the exterior shell model fundamentally.
+
+9. ENVIRONMENT SCENES (ground texture presets)
+   Low effort, cosmetic. Grass, paved, gravel, sand.
+
+10. ADDITIONAL ROOF SLIDERS
+    Thickness and trim height on flat/pitched roofs. Minor.
+
+
+WHAT WE DO BETTER
+-----------------
+- Pricing engine accuracy and admin override system
+- Per-wall cladding overrides (may not exist in competitor)
+- Save/Load/Share design system
+- Onboarding overlay for new customers
+- Cleaner, faster UI with no framework overhead
+- PDF quote export (print-to-PDF)
+- Lead capture with full spec in email body

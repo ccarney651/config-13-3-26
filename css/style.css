@@ -86,6 +86,17 @@ header h1 {
   letter-spacing: 0.02em;
   transition: all 0.3s;
   white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+}
+.price-vat-note {
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .share-btn {
@@ -315,13 +326,6 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
 /* ── Colour swatches ─────────────────────────────────────────────────────────── */
 
 .swatch-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-.swatch {
-  width: 32px; height: 32px; border-radius: 50%;
-  cursor: pointer; border: 3px solid transparent;
-  transition: all 0.18s; box-shadow: var(--shadow-sm);
-}
-.swatch.active { border-color: var(--accent-dark); transform: scale(1.18); }
-.swatch:hover  { transform: scale(1.12); box-shadow: var(--shadow-md); }
 
 .colour-row-label {
   font-size: 10.5px; font-weight: 700; color: var(--muted);
@@ -504,7 +508,6 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
 /* ── Openings list ───────────────────────────────────────────────────────────── */
 
 .openings-list  { display: flex; flex-direction: column; gap: 6px; }
-.openings-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 10px 0; }
 
 .opening-row {
   display: flex; align-items: center; gap: 8px;
@@ -512,8 +515,7 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   border: 1.5px solid var(--border); border-radius: var(--radius);
   font-size: 12px; cursor: pointer; transition: all 0.15s;
 }
-.opening-row:hover         { border-color: var(--accent-mid); background: var(--accent-light); }
-.opening-row--selected     { border-color: var(--accent); background: var(--accent-light); }
+.opening-row:hover { border-color: var(--accent-mid); background: var(--accent-light); }
 .opening-icon  { font-size: 16px; flex-shrink: 0; }
 .opening-info  { flex: 1; min-width: 0; }
 .opening-label { font-weight: 600; display: block; }
@@ -640,7 +642,7 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
 .drag-btn {
   padding: 7px 8px; border-radius: var(--radius); font-family: 'DM Sans', sans-serif;
   font-size: 11.5px; font-weight: 500; cursor: grab; border: 1px solid var(--border);
-  background: var(--surface); color: var(--text); text-align: left;
+  background: var(--panel); color: var(--text); text-align: left;
   display: flex; justify-content: space-between; align-items: center;
   transition: background 0.12s, border-color 0.12s; user-select: none;
 }
@@ -1278,7 +1280,7 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
   font-weight: 500;
   pointer-events: none;
   opacity: 0;
-  animation: toastIn 2s ease forwards;
+  animation: toastIn var(--toast-duration, 2s) ease forwards;
   z-index: 9999;
   white-space: nowrap;
 }
@@ -1513,4 +1515,23 @@ details[open] .spec-summary::before { transform: rotate(90deg); }
 @media (max-width: 768px) {
   .ob-card { padding: 24px 18px 20px; gap: 14px; }
   .ob-title { font-size: 19px; }
+}
+
+/* ─── Keyboard focus rings ──────────────────────────────────────────────────── */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cat-swatch:focus-visible { outline-offset: 3px; border-radius: 10px; }
+.tb-btn:focus-visible     { outline-offset: 3px; border-radius: 6px; }
+.ob-btn:focus-visible     { outline-offset: 3px; border-radius: 8px; }
+
+/* ─── Reduced-motion accessibility ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
