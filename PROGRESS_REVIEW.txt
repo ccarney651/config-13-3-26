@@ -165,6 +165,84 @@ The following is a comparison against the leading competitor product
     or shareable link would be needed for a production deployment.
 
 
+FULL TO-DO LIST (Updated 2026-04-23)
+--------------------------------------
+
+PERFORMANCE
+  1. buildRoom partial rebuilds — rebuilds everything on every state change;
+     partitions, furniture, electrics, roof should rebuild independently
+
+VISUAL / 3D
+  2. Wall edge / T-junction cleanup — z-fighting and gaps where partition
+     walls meet exterior walls
+  3. Dimension labels on partitions — floating length label above each
+     partition, same style as exterior arrows
+
+UX
+  4. Right-click context menus — all interactive objects (partially done)
+  5. Snap-to-grid for partitions — optional 0.25m grid snapping
+
+FEATURES
+  6. Preset rooms — awaiting .glb models from employer
+  7. Partition / interior doors — door gap cutout, awaiting .glb from employer
+
+MOBILE
+  8. Touch drag verification — furniture and electric drag just added, not tested
+
+TRUST & CREDIBILITY
+  9.  Branding — logo, correct colours/fonts matching company website
+  10. Footer / contact info — phone, email, address shown after quote
+  11. Thank-you confirmation after lead form submit
+
+LEAD CAPTURE
+  12. Lead form reliability — mailto breaks without default mail client;
+      use Formspree / Netlify Forms or similar
+  13. Quote PDF download — more shareable than on-screen modal
+
+PRICING ACCURACY
+  14. Employer sign-off on _v2/_v3 catalogue items:
+      - bathroom (£3000) vs bathroom_v2 (£80)
+      - electric_shower (£160) vs _v2 (£180)
+      - sliding_4_part_door (£5200) vs _v2 (£4000)
+      - stacker_door (£3100) vs _v2 (£3500)
+      - roof_window / _v2 / _v3 (£1800/£2000/£2500)
+      - awning_window / _v2 / _v3 (£300/£500/£800)
+      - awning_vertical_window / _v2 (£507/£800)
+      - fixed_window / _v2 / _v3 (£900/£300/£500)
+      - tilt_n_turn_window / _v2 (£250/£350)
+  15. Window style uplifts confirmed — Long Panel +£200, Narrow Vert/Horiz +£150
+      are placeholders
+  16. VAT display — show ex-VAT vs inc-VAT clearly
+  17. Price validity disclaimer — "subject to survey", validity period
+
+LEGAL / COMPLIANCE
+  18. Privacy policy / cookie notice — GDPR required for lead data collection
+  19. Terms & conditions — what quote covers, cancellation terms
+
+ACCESSIBILITY & CROSS-BROWSER
+  20. Keyboard navigation — tab stops, focus rings
+  21. Cross-browser testing — Safari on iOS (WebGL quirks, dvh units)
+  22. Reduced-motion support — prefers-reduced-motion media query
+
+CONTENT
+  23. Real product imagery in admin thumbnails — many show grey placeholders
+  24. Accurate GLB models — furniture is BoxGeometry; doors/windows are proxies
+  25. Help tooltips / onboarding — hint overlay for drag, orbit, long-press
+
+OPERATIONAL
+  26. Analytics — quote-generated event tracking (e.g. Plausible)
+  27. Error handling for failed GLB loads — degrade gracefully on 404
+  28. Share link / URL state — verify round-trips all state fields correctly
+
+
+PRIORITY ORDER FOR FIRST PUBLIC LAUNCH
+  1. Lead form reliability (item 12)
+  2. Branding (item 9)
+  3. Pricing sign-off from employer (items 14-15)
+  4. Privacy policy / GDPR (item 18)
+  5. VAT display + price disclaimer copy (items 16-17)
+
+
 MAIN NOTES
 -----
 The pricing engine is the most complete part of the project and is in good

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \":*)",
+      "Bash(grep -n \"function selectDoorMat\\\\|function toggleSnapGrid\\\\|function deleteOpening\\\\|function shareDesign\" /c/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/js/*.js)",
+      "Bash(grep -n \"function deleteOpening\\\\|function newBuild\\\\|function applyAdminDisabledItems\" /c/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/js/*.js)",
+      "Bash(grep -n \"syncRoofSliders\\\\|syncRoofSliderVisibility\" /c/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/js/*.js)",
+      "Bash(grep -n \"\\\\/\\\\/\" /c/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/js/*.js)",
+      "Bash(grep -n \"setView\\\\|calcQuarter\\\\|selectDoorMat\\\\|getRoof\" /c/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/js/*.js)",
+      "Bash(grep -En \"setView|tryLoadFromURL|_calcSegmentOffset|calcQuarter\" /c/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/js/*.js)",
+      "Bash(grep -n \"const _claddingWall\\\\|selectGlazingType\\\\|_WALL_TK\\\\|DISABLED_ITEMS\" /c/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/js/*.js)",
+      "Bash(grep -En \"^\\\\s*\\\\/\\\\/.*TODO|FIXME|HACK|XXX|BUG|DEPRECATED\" /c/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/js/*.js)",
+      "Bash(node test/pricing.coverage.test.js)",
+      "Bash(npm start *)",
+      "Bash(npx serve *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Read(//c/Users/ccarn/.claude/skills/**)",
+      "Read(//c/Users/ccarn/.claude/plugins/**)",
+      "Bash(chmod +x \"c:/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/.claude/hooks/block-dangerous-git.sh\")",
+      "Bash(bash \"c:/Users/ccarn/OneDrive/Documents/GitHub/config-13-3-26/.claude/hooks/block-dangerous-git.sh\")",
+      "Bash(echo \"exit: $?\")"
+    ]
+  }
+}

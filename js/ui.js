@@ -411,7 +411,7 @@ function selectCladding(key, el) {
   el.closest('.swatch-grid').querySelectorAll('.cat-swatch').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   stateHistory.push();
-  buildRoom();
+  if (typeof rebuildCladdingMats === 'function') rebuildCladdingMats(); else buildRoom();
   updatePriceDisplay();
 }
 
@@ -434,7 +434,7 @@ function selectInteriorWalls(key, el) {
   el.closest('.swatch-grid').querySelectorAll('.cat-swatch').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   stateHistory.push();
-  buildRoom();
+  if (typeof rebuildInteriorMats === 'function') rebuildInteriorMats(); else buildRoom();
   updatePriceDisplay();
 }
 
@@ -444,7 +444,7 @@ function selectInteriorFloor(key, el) {
   el.classList.add('active');
   stateHistory.push();
   if (typeof _invalidateMat === 'function') _invalidateMat('intFloor_');
-  buildRoom();
+  if (typeof rebuildFloor === 'function') rebuildFloor(); else buildRoom();
   updatePriceDisplay();
 }
 

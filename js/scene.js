@@ -1119,7 +1119,7 @@ function buildSideWallFull(wallId, pts, worldW, worldH, descriptors, hw, hd, gen
   });
 
   // ── Helper: build one face (exterior or interior) ─────────────────────────
-  function buildFace(xPos, mat) {
+  function buildFace(xPos, mat, extra = null) {
     const geo = new THREE.ShapeGeometry(shape, 2);
 
     // ShapeGeometry puts the shape in XY plane: shape-X = scene-Z, shape-Y = scene-Y.
@@ -1140,6 +1140,7 @@ function buildSideWallFull(wallId, pts, worldW, worldH, descriptors, hw, hd, gen
     const m = new THREE.Mesh(geo, mat);
     m.castShadow = m.receiveShadow = true;
     m.userData.wallId = wallId;
+    if (extra) Object.assign(m.userData, extra);
     buildingGroup.add(m);
     wallMeshes[wallId].push(m);
   }
@@ -1148,7 +1149,7 @@ function buildSideWallFull(wallId, pts, worldW, worldH, descriptors, hw, hd, gen
   const cfg    = makeWallTexInfo(wallId);
   const extMat = makeTiledMat({ ...cfg, worldW, worldH, tint: state.claddingTint });
   extMat.side  = THREE.DoubleSide;
-  buildFace(wallX, extMat);
+  buildFace(wallX, extMat, { claddingSide: { wallId, worldW, worldH } });
 
   // Interior face — inset by wall thickness, plain interior colour
   const iwMat = makeIwMat(state.interiorWalls); iwMat.side = THREE.DoubleSide;
@@ -1191,6 +1192,7 @@ function buildWallFace(wallId, wallW, wallH, descriptors, hw, hd, gen) {
     const m = new THREE.Mesh(geo, panelMat);
     m.position.set(x, y, z); m.castShadow = m.receiveShadow = true;
     m.userData.wallId = wallId;
+    m.userData.claddingPanel = { wallId, panelW: w, panelH: h, panelX0: cx - w / 2, panelY0: cy - h / 2 };
     buildingGroup.add(m);
     wallMeshes[wallId].push(m);
     // Interior face (thin panel offset inward)
@@ -1465,6 +1467,8 @@ function buildGuttering(w, _d, h, hw, hd, ov) {
 
 // ─── MAIN BUILD ────────────────────────────────────────────────────────────────
 
+let _intFloorMesh = null; // tracked so rebuildFloor() can swap material without full rebuild
+
 // Material cache — must be declared before _disposeBuildingGroup uses it
 const _matCache = new Map();
 function _cachedMat(key, factory) {
@@ -1584,7 +1588,7 @@ function buildRoom() {
       new THREE.MeshStandardMaterial({ color: intFloorCol, roughness: floorRoughMap[state.interiorFloor] ?? 0.70, metalness: 0.0 })
     );
   }
-  box(w-0.02, 0.005, d-0.02, 0, 0.185, 0, intFloorMat);
+  _intFloorMesh = box(w-0.02, 0.005, d-0.02, 0, 0.185, 0, intFloorMat);
 
   const wallOps = { front:[], back:[], left:[], right:[] };
   state.openings.forEach(op => wallOps[op.wall].push(opToDescriptor(op)));
@@ -1695,6 +1699,59 @@ function buildRoom() {
     }));
     skyDome.visible = false;
   }
+}
+
+// ─── PARTIAL REBUILD FAST PATHS ─────────────────────────────────────────────────
+// These bypass the full buildRoom() for changes that only affect materials, not geometry.
+
+function rebuildFloor() {
+  if (!_intFloorMesh) return;
+  const w = state.width, d = state.depth;
+  const floorTexDef = FLOOR_TEXTURE_DEFS[state.interiorFloor];
+  const floorTex    = floorTexDef ? _floorTexCache[state.interiorFloor] : null;
+  if (floorTex) {
+    floorTex.repeat.set(w * floorTexDef.tilesPerMeter, d * floorTexDef.tilesPerMeter);
+    floorTex.needsUpdate = true;
+    _intFloorMesh.material = new THREE.MeshStandardMaterial({ map: floorTex, roughness: floorTexDef.roughness, metalness: 0.0 });
+  } else {
+    const col = INTERIOR_FLOOR_COLORS[state.interiorFloor] ?? 0xc8a87a;
+    const roughMap = { oak:0.70, walnut:0.65, farm_oak:0.72, tiles:0.40, polished_concrete:0.30, gym_black:0.60, white_marble:0.25, rubber:0.85 };
+    _intFloorMesh.material = new THREE.MeshStandardMaterial({ color: col, roughness: roughMap[state.interiorFloor] ?? 0.70, metalness: 0.0 });
+  }
+  markDirty();
+}
+
+function rebuildCladdingMats() {
+  buildingGroup.traverse(obj => {
+    if (!obj.isMesh) return;
+    const cp = obj.userData.claddingPanel;
+    if (cp) {
+      const texInfo = makeWallTexInfo(cp.wallId);
+      obj.material = makePanelMat(texInfo, cp.panelW, cp.panelH, cp.panelX0, cp.panelY0);
+      return;
+    }
+    const cs = obj.userData.claddingSide;
+    if (cs) {
+      const cfg = makeWallTexInfo(cs.wallId);
+      const mat = makeTiledMat({ ...cfg, worldW: cs.worldW, worldH: cs.worldH, tint: state.claddingTint });
+      mat.side = THREE.DoubleSide;
+      obj.material = mat;
+    }
+  });
+  markDirty();
+}
+
+function rebuildInteriorMats() {
+  const newMat = makeIwMat(state.interiorWalls);
+  newMat.side = THREE.DoubleSide;
+  // Update exterior wall interior face meshes in-place
+  ['front', 'back', 'left', 'right'].forEach(wid => {
+    wallMeshes[wid].forEach(m => { if (m.userData.isInterior) m.material = newMat; });
+  });
+  // Partitions and preset rooms have their own geometry per wall finish — rebuild those subsystems only
+  buildPartitions();
+  buildPresetRooms();
+  markDirty();
 }
 
 // ─── INTERIOR VIEW MODE ─────────────────────────────────────────────────────────
@@ -2456,9 +2513,10 @@ function buildPartitions() {
     const wallLimit = p.axis === 'x' ? hw : hd;
     // x-axis partitions abut left/right walls (ShapeGeometry, interior face at hw-TK) → trim TK.
     // z-axis partitions abut front/back walls (BoxGeometry centred at hd, interior face at hd-TK/2) → trim TK/2.
-    const trimAmt   = p.axis === 'x' ? TK : TK / 2;
-    const trimStart = Math.abs(p.start + wallLimit) < 0.01 ? trimAmt : 0;
-    const trimEnd   = Math.abs(p.end   - wallLimit) < 0.01 ? trimAmt : 0;
+    const trimAmt = p.axis === 'x' ? TK : TK / 2;
+    let trimStart = Math.abs(p.start + wallLimit) < 0.01 ? trimAmt : 0;
+    let trimEnd   = Math.abs(p.end   - wallLimit) < 0.01 ? trimAmt : 0;
+
     const rStart = p.start + trimStart;
     const rEnd   = p.end   - trimEnd;
     if (rEnd - rStart <= 0) return;
@@ -2483,8 +2541,16 @@ function buildPartitions() {
       return null;
     }).filter(Boolean);
 
+    // Perpendicular partition cross-blocks: skip geometry where another partition's body
+    // occupies p's path. Covers both T-junctions (p ends at q) and cross-junctions (p passes
+    // fully through q). The gap in p is filled visually by q's own geometry.
+    const crossBlocks = state.partitions.filter(q => {
+      if (q.id === p.id || q.axis === p.axis) return false;
+      return p.pos >= Math.min(q.start, q.end) - TK / 2 && p.pos <= Math.max(q.start, q.end) + TK / 2;
+    }).map(q => ({ lo: q.pos - TK / 2, hi: q.pos + TK / 2, isDoor: false }));
+
     // Merge all blocked ranges and sort by lo
-    const allBlocks = [...doors, ...roomBlocks].sort((a, b) => a.lo - b.lo);
+    const allBlocks = [...doors, ...roomBlocks, ...crossBlocks].sort((a, b) => a.lo - b.lo);
 
     // Slice the wall into segments around each blocked zone
     const segments = [];
@@ -4693,6 +4759,44 @@ canvas.addEventListener('touchstart', e => {
     }
   }
 
+  // Check for placed electric → select or drag
+  const elecGroups0 = electricMeshes.map(em => em.group);
+  const elecHits0 = raycaster.intersectObjects(elecGroups0, true);
+  if (elecHits0.length) {
+    let hitObj0 = elecHits0[0].object;
+    while (hitObj0 && !hitObj0.userData.electricId) hitObj0 = hitObj0.parent;
+    if (hitObj0?.userData.electricId != null) {
+      const eid = hitObj0.userData.electricId;
+      if (_selectedElectricId === eid) {
+        electricDragState = { id: eid };
+        touchState = { type: 'electric' };
+      } else {
+        deselectAll(); selectElectric(eid);
+        touchState = { type: 'orbit', lastX: t0.clientX, lastY: t0.clientY, startX: t0.clientX, startY: t0.clientY, moved: false };
+      }
+      return;
+    }
+  }
+
+  // Check for placed furniture → select or drag
+  raycaster.setFromCamera(getMouseNDC(fakeEvent), camera);
+  const fHitsT = raycaster.intersectObjects(furnitureMeshes, false);
+  if (fHitsT.length) {
+    const fid = fHitsT[0].object.userData.furnitureId;
+    if (fid != null) {
+      if (_selectedFurnitureId === fid) {
+        const gp0 = raycastGround(fakeEvent);
+        const f0 = state.furniture.find(f => f.id === fid);
+        furnitureDragState = { id: fid, groundAnchor: gp0, rawX: f0 ? f0.x : 0, rawZ: f0 ? f0.z : 0 };
+        touchState = { type: 'furniture' };
+      } else {
+        deselectAll(); selectFurniture(fid);
+        touchState = { type: 'orbit', lastX: t0.clientX, lastY: t0.clientY, startX: t0.clientX, startY: t0.clientY, moved: false };
+      }
+      return;
+    }
+  }
+
   // Long-press → context menu (fires if finger doesn't move for 500ms)
   _longPressTimer = setTimeout(() => {
     _longPressTimer = null;
@@ -4881,6 +4985,66 @@ canvas.addEventListener('touchmove', e => {
     return;
   }
 
+  if (touchState.type === 'electric') {
+    const fakeE = { clientX: t0.clientX, clientY: t0.clientY };
+    const snap = _electricWallRaycast(fakeE);
+    if (snap && electricDragState) {
+      const el = (state.electrics || []).find(x => x.id === electricDragState.id);
+      if (el) {
+        el.x = snap.x; el.z = snap.z; el.rotY = snap.rotY;
+        const em = electricMeshes.find(m => m.id === el.id);
+        if (em) { em.group.position.x = el.x; em.group.position.z = el.z; em.group.rotation.y = el.rotY; }
+      }
+    }
+    markDirty();
+    return;
+  }
+
+  if (touchState.type === 'furniture') {
+    const fakeE = { clientX: t0.clientX, clientY: t0.clientY };
+    const gp = raycastGround(fakeE);
+    if (gp && furnitureDragState?.groundAnchor) {
+      const f = state.furniture.find(f => f.id === furnitureDragState.id);
+      if (f) {
+        const def = FURNITURE_CATALOG[f.type];
+        const dims = def ? { w: def.w, d: def.d }
+          : (f.dims ? { w: Array.isArray(f.dims) ? f.dims[0] : f.dims.w,
+                        d: Array.isArray(f.dims) ? f.dims[2] : f.dims.d } : null);
+        if (def?.wallHug && dims) {
+          const snap = _snapToNearestWallFace(gp.x, gp.z, dims.w, dims.d, _gatherWallFaces(), state.width / 2, state.depth / 2);
+          f.x = snap.x; f.z = snap.z; f.rotY = snap.rotY;
+        } else {
+          furnitureDragState.rawX += gp.x - furnitureDragState.groundAnchor.x;
+          furnitureDragState.rawZ += gp.z - furnitureDragState.groundAnchor.z;
+          f.x = _snapEnabled ? _snapToGrid(furnitureDragState.rawX) : furnitureDragState.rawX;
+          f.z = _snapEnabled ? _snapToGrid(furnitureDragState.rawZ) : furnitureDragState.rawZ;
+          if (dims) {
+            const hw = state.width / 2, hd = state.depth / 2;
+            const cosA = Math.abs(Math.cos(f.rotY ?? 0)), sinA = Math.abs(Math.sin(f.rotY ?? 0));
+            const hrX = cosA * dims.w / 2 + sinA * dims.d / 2;
+            const hrZ = sinA * dims.w / 2 + cosA * dims.d / 2;
+            const MARGIN = 0.05, WS = 0.15;
+            f.x = Math.max(-hw + hrX + MARGIN, Math.min(hw - hrX - MARGIN, f.x));
+            f.z = Math.max(-hd + hrZ + MARGIN, Math.min(hd - hrZ - MARGIN, f.z));
+            if (Math.abs(f.x - (-hw + hrX + MARGIN)) < WS) f.x = -hw + hrX + MARGIN;
+            if (Math.abs(f.x - ( hw - hrX - MARGIN)) < WS) f.x =  hw - hrX - MARGIN;
+            if (Math.abs(f.z - (-hd + hrZ + MARGIN)) < WS) f.z = -hd + hrZ + MARGIN;
+            if (Math.abs(f.z - ( hd - hrZ - MARGIN)) < WS) f.z =  hd - hrZ - MARGIN;
+          }
+        }
+        furnitureDragState.groundAnchor = gp;
+        const group = furnitureGroups[f.id];
+        if (group) { group.position.x = f.x; group.position.z = f.z; group.rotation.y = f.rotY ?? 0; }
+        else {
+          const mesh = furnitureMeshes.find(m => m.userData.furnitureId === f.id);
+          if (mesh) { mesh.position.x = f.x; mesh.position.z = f.z; mesh.rotation.y = f.rotY ?? 0; }
+        }
+        markDirty();
+      }
+    }
+    return;
+  }
+
   if (touchState.type === 'orbit') {
     const dx = t0.clientX - touchState.lastX;
     const dy = t0.clientY - touchState.lastY;
@@ -4896,11 +5060,13 @@ canvas.addEventListener('touchmove', e => {
 canvas.addEventListener('touchend', e => {
   _cancelLongPress();
   if (e.touches.length === 0) {
-    if (touchState?.type === 'handle' || touchState?.type === 'partition' || touchState?.type === 'presetRoom') {
+    if (touchState?.type === 'handle' || touchState?.type === 'partition' || touchState?.type === 'presetRoom' || touchState?.type === 'furniture' || touchState?.type === 'electric') {
       if (typeof stateHistory !== 'undefined') stateHistory.push();
     }
     if (touchState?.type === 'partition') partitionDragState = null;
     if (touchState?.type === 'presetRoom') presetRoomDragState = null;
+    if (touchState?.type === 'furniture') furnitureDragState = null;
+    if (touchState?.type === 'electric') electricDragState = null;
 
     // Tap detection: short touch with no meaningful movement → run click logic
     if (touchState?.type === 'orbit' && !touchState.moved) {

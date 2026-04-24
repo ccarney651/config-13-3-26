@@ -87,6 +87,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h3v3H3zM9 3h3v3H9zM15 3h3v3h-3zM21 3h0M3 9h3v3H3zM9 9h3v3H9zM15 9h3v3h-3zM3 15h3v3H3zM9 15h3v3H9zM15 15h3v3h-3z"/></svg>
       </button>
       <button class="tb-btn" id="tbUnits" onclick="toggleUnits()" title="Switch to feet &amp; inches" style="font-size:11px;font-weight:700;letter-spacing:-0.02em;width:36px">m</button>
+      <button class="tb-btn" id="tbHelp" onclick="openOnboarding()" title="Help &amp; tips" style="font-size:14px;font-weight:700">?</button>
       <div class="tb-sep"></div>
       <button class="tb-btn" id="tbUndo" onclick="stateHistory.undo()" title="Undo" disabled>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 2.64-6.36L3 9"/></svg>
@@ -2203,6 +2204,72 @@
 
   // Expose globally so scene.js can call it
   window._ctxMenu = { show: showMenu, hide: hideMenu };
+})();
+</script>
+
+<!-- ── Onboarding overlay ──────────────────────────────────────────────────── -->
+<div id="onboardingOverlay" style="display:none">
+  <div class="ob-card">
+    <div class="ob-logo">Garden Room Configurator</div>
+    <h2 class="ob-title">Welcome — here's how it works</h2>
+    <div class="ob-tips">
+      <div class="ob-tip">
+        <div class="ob-icon">⟳</div>
+        <div>
+          <strong>Orbit the 3D view</strong>
+          <span>Drag to rotate · Scroll to zoom · Right-click drag to pan</span>
+        </div>
+      </div>
+      <div class="ob-tip">
+        <div class="ob-icon">↔</div>
+        <div>
+          <strong>Resize your room</strong>
+          <span>Drag the blue arrows around the building, or use the sliders in the Style tab</span>
+        </div>
+      </div>
+      <div class="ob-tip">
+        <div class="ob-icon">🚪</div>
+        <div>
+          <strong>Add doors &amp; windows</strong>
+          <span>Go to the Doors &amp; Windows tab, choose a style, then click a wall to place it</span>
+        </div>
+      </div>
+      <div class="ob-tip">
+        <div class="ob-icon">⋮</div>
+        <div>
+          <strong>Right-click any object</strong>
+          <span>Doors, windows, furniture and partition walls all have option menus</span>
+        </div>
+      </div>
+    </div>
+    <div class="ob-touch-note" id="obTouchNote" style="display:none">
+      On touch: <strong>long-press</strong> objects for options · <strong>tap then drag</strong> to move selected items
+    </div>
+    <button class="ob-btn" onclick="dismissOnboarding()">Start Designing</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const KEY = 'gardenroom_onboarding_seen';
+  function openOnboarding() {
+    const ov = document.getElementById('onboardingOverlay');
+    if (!ov) return;
+    const note = document.getElementById('obTouchNote');
+    if (note) note.style.display = ('ontouchstart' in window) ? 'block' : 'none';
+    ov.style.display = 'flex';
+  }
+  function dismissOnboarding() {
+    const ov = document.getElementById('onboardingOverlay');
+    if (ov) ov.style.display = 'none';
+    try { localStorage.setItem(KEY, '1'); } catch(e) {}
+  }
+  window.openOnboarding    = openOnboarding;
+  window.dismissOnboarding = dismissOnboarding;
+  // Show on first visit (after a short delay so the 3D scene loads first)
+  try {
+    if (!localStorage.getItem(KEY)) setTimeout(openOnboarding, 800);
+  } catch(e) {}
 })();
 </script>
 
